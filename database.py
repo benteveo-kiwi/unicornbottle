@@ -1,8 +1,9 @@
-from sqlalchemy import create_engine, engine
 from sqlalchemy import Column, Integer, String, JSON
-from typing import Any
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, engine
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from typing import Any
+from unicornbottle.environment import read_configuration_file
 from urllib.parse import quote  
 import configparser
 import sqlalchemy
@@ -56,8 +57,7 @@ def get_url() -> str:
     """
     Get the configuration file and create a properly escaped connection string.
     """
-    config = configparser.ConfigParser()
-    config.read(CONFIG_FILE)
+    config = read_configuration_file() 
     
     db = config['database']
 

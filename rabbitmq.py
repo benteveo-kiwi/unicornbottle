@@ -1,7 +1,5 @@
-import configparser
+from unicornbottle.environment import read_configuration_file
 import pika
-
-CONFIG_FILE = '/home/cli/.cli.conf'
 
 class MissingConfigurationException(Exception):
     pass
@@ -10,9 +8,8 @@ def rabbitmq_connect() -> pika.BlockingConnection:
     """
     Connect to rabbit using data from the configuration file.
     """
-    config = configparser.ConfigParser()
-    config.read(CONFIG_FILE)
-    
+    config = read_configuration_file() 
+
     rabbit = config['rabbitmq']
     hostname = rabbit['hostname']
     username = rabbit['username']
