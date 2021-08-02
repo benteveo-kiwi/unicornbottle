@@ -156,9 +156,10 @@ class EndpointMetadata(Base):
 
     id = Column(Integer, primary_key=True)
     pretty_url = Column(String, index=True)
-    method = Column(String)
-    fuzz_count = Column(Integer, index=True)
-    crawl_count = Column(Integer, index=True)
+    method = Column(String, index=True)
+
+    fuzz_count = Column(Integer, default=0)
+    crawl_count = Column(Integer, default=0)
 
     request_responses = relationship("RequestResponse")
 
