@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, JSON
+from sqlalchemy import Column, Integer, String, JSON, ForeignKey
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import relationship
 from typing import Dict, Optional, Any, Union, TypeVar, Type
 import base64
 import json
@@ -143,6 +144,19 @@ class DatabaseWriteItem():
         self.response = response
         self.exception = exception
 
+class EndpointMetadata(Base):
+    """
+    This table contains metadata related to particular endpoints. Endpoints are
+    defined as (`pretty_url`,`method`) pairs. This may encompass several
+    `RequestResponses` if more than one request has ever been recorded for an
+    endpoint.
+    """
+    __tablename__ = "endpoint_metadata"
+
+    id = Column(Integer, primary_key=True)
+    fuzz_count = Column(Integer)
+    crawl_count = Column(Integer)
+
 class RequestResponse(Base):
     """
     This table contains the requests sent through the proxy and, if there are
@@ -168,6 +182,7 @@ class RequestResponse(Base):
     __tablename__ = "request_response"
 
     id = Column(Integer, primary_key=True)
+    metadata_id = Column(Integer, ForeignKey('endpoint_metadata.id'))
     pretty_url = Column(String, index=True)
     pretty_host = Column(String, index=True)
     path = Column(String, index=True)
@@ -178,8 +193,6 @@ class RequestResponse(Base):
     exception = Column(JSON)
     request = Column(JSON)
     response = Column(JSON)
-    fuzz_count = Column(Integer)
-    crawl_count = Column(Integer)
 
     @classmethod
     def createFromDWI(cls, dwi:DatabaseWriteItem) -> RR:
