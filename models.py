@@ -157,6 +157,8 @@ class EndpointMetadata(Base):
     fuzz_count = Column(Integer)
     crawl_count = Column(Integer)
 
+    request_responses = relationship("RequestResponse")
+
 class RequestResponse(Base):
     """
     This table contains the requests sent through the proxy and, if there are
@@ -182,7 +184,7 @@ class RequestResponse(Base):
     __tablename__ = "request_response"
 
     id = Column(Integer, primary_key=True)
-    metadata_id = Column(Integer, ForeignKey('endpoint_metadata.id'))
+    metadata_id = Column(Integer, ForeignKey('endpoint_metadata.id'), nullable=False)
     pretty_url = Column(String, index=True)
     pretty_host = Column(String, index=True)
     path = Column(String, index=True)
