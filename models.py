@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, JSON, ForeignKey
+from sqlalchemy import Column, Integer, String, JSON, ForeignKey, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from typing import Dict, Optional, Any, Union, TypeVar, Type
@@ -152,10 +152,13 @@ class EndpointMetadata(Base):
     endpoint.
     """
     __tablename__ = "endpoint_metadata"
+    __table_args__ = (UniqueConstraint('pretty_url', 'method', name='_url_method_uc'),)
 
     id = Column(Integer, primary_key=True)
-    fuzz_count = Column(Integer)
-    crawl_count = Column(Integer)
+    pretty_url = Column(String, index=True)
+    method = Column(String)
+    fuzz_count = Column(Integer, index=True)
+    crawl_count = Column(Integer, index=True)
 
     request_responses = relationship("RequestResponse")
 
