@@ -9,99 +9,6 @@ RR = TypeVar('RR', bound='RequestResponse')
 MS = TypeVar('MS', bound='MessageSerializer')
 
 Base : Any = declarative_base()
-
-class DatabaseWriteItem():
-    """
-    Simple data structure for communication between the `send_request` thread
-    and the `thread_postgres` thread.
-    """
-    def __init__(self, target_guid:str, request:mitmproxy.net.http.Request,
-            response:Optional[mitmproxy.net.http.Response], exception:Optional[Exception]) -> None:
-        """
-        Default constructor.
-
-        Args:
-            target_guid: the guid sent in the X-UB-GUID header.
-            request: the `Request` associated with this entry.
-            response: the response. May be null if an error occurred that
-                prevented the retrieval of the response, such as a timeout.
-            exception: the exception associated with this failure. May be None if
-                there were no errors
-        """
-        self.target_guid = target_guid
-        self.request = request
-        self.response = response
-        self.exception = exception
-
-class RequestResponse(Base):
-    """
-    This table contains the requests sent through the proxy and, if there are
-    any, also information regarding either the response or the error. These map
-    almost 1:1 to attributes that are present in the `mitmproxy` API
-    documentation, so if you need more information regarding any of the fields
-    you can also find information there.
-
-    The following columns are not part of that API:
-
-    - fuzz_count: number of times we have fuzzed this endpoint.
-    - crawl_count: the number of times we have initiated a crawl from this URL.
-      Our crawling strategy is recursive and time-bound so we prioritize
-      starting from endpoints we have not yet scanned from where we can.
-
-    Please note that a different schema is used for each "target", in order to
-    avoid all requests ever sent through the proxy from being stored in a
-    single database table and make performance tuning a little simpler.
-
-    @see https://docs.mitmproxy.org/dev/api/mitmproxy/http.html#Request
-    @see https://docs.mitmproxy.org/dev/api/mitmproxy/http.html#Response
-    """
-    __tablename__ = "request_response"
-
-    id = Column(Integer, primary_key=True)
-    pretty_url = Column(String, index=True)
-    pretty_host = Column(String, index=True)
-    path = Column(String, index=True)
-    scheme = Column(String)
-    port = Column(Integer)
-    method = Column(String)
-    response_status_code = Column(Integer)
-    exception = Column(JSON)
-    request = Column(JSON)
-    response = Column(JSON)
-    fuzz_count = Column(Integer)
-    crawl_count = Column(Integer)
-
-    @classmethod
-    def createFromDWI(cls, dwi:DatabaseWriteItem) -> RR:
-        """
-        Helper method for creating a `RequestResponse` object from a `models.DatabaseWriteItem`
-
-        Args:
-            dwi: Input `DatabaseWriteItem`.
-        """
-
-        exc = None # https://stackoverflow.com/questions/8238360/how-to-save-traceback-sys-exc-info-values-in-a-variable
-        if dwi.exception is not None:
-            pass
-
-        resp = None
-        resp_status_code=None
-        if dwi.response is not None:
-            resp = Response(dwi.response.get_state()).toJSON() #type: ignore
-            resp_status_code=dwi.response.status_code
-
-        req = Request(dwi.request.get_state()).toJSON() #type: ignore
-            
-        return cls(pretty_url=dwi.request.pretty_url,
-                pretty_host=dwi.request.pretty_host, path=dwi.request.path,
-                scheme=dwi.request.scheme, port=dwi.request.port,
-                method=dwi.request.method,
-                response_status_code=resp_status_code,
-                exception=exc,
-                request=req,
-                response=resp,
-                fuzz_count=0,
-                crawl_count=0)
         
 class RequestEncoder(json.JSONEncoder):
     """
@@ -200,3 +107,106 @@ class Response(MessageSerializer):
         Grabs data stored in the request state and converts it into a mitmproxy.http.Response object.
         """
         return mitmproxy.net.http.Response(**self.state)
+
+class ExceptionSerializer(MessageSerializer):
+    """
+    Grabs information about an exception.
+    """
+
+    def __init__(self, type:str, value:str, tb:str):
+        self.state : Dict[str, str] = {}
+
+        self.state["type"] = type
+        self.state["value"] = value
+        self.state["tb"] = tb
+
+class DatabaseWriteItem():
+    """
+    Simple data structure for communication between the `send_request` thread
+    and the `thread_postgres` thread.
+    """
+    def __init__(self, target_guid:str, request:mitmproxy.net.http.Request,
+            response:Optional[mitmproxy.net.http.Response], exception:Optional[ExceptionSerializer]) -> None:
+        """
+        Default constructor.
+
+        Args:
+            target_guid: the guid sent in the X-UB-GUID header.
+            request: the `Request` associated with this entry.
+            response: the response. May be null if an error occurred that
+                prevented the retrieval of the response, such as a timeout.
+            exception: the exception associated with this failure. May be None if
+                there were no errors.
+        """
+        self.target_guid = target_guid
+        self.request = request
+        self.response = response
+        self.exception = exception
+
+class RequestResponse(Base):
+    """
+    This table contains the requests sent through the proxy and, if there are
+    any, also information regarding either the response or the error. These map
+    almost 1:1 to attributes that are present in the `mitmproxy` API
+    documentation, so if you need more information regarding any of the fields
+    you can also find information there.
+
+    The following columns are not part of that API:
+
+    - fuzz_count: number of times we have fuzzed this endpoint.
+    - crawl_count: the number of times we have initiated a crawl from this URL.
+      Our crawling strategy is recursive and time-bound so we prioritize
+      starting from endpoints we have not yet scanned from where we can.
+
+    Please note that a different schema is used for each "target", in order to
+    avoid all requests ever sent through the proxy from being stored in a
+    single database table and make performance tuning a little simpler.
+
+    @see https://docs.mitmproxy.org/dev/api/mitmproxy/http.html#Request
+    @see https://docs.mitmproxy.org/dev/api/mitmproxy/http.html#Response
+    """
+    __tablename__ = "request_response"
+
+    id = Column(Integer, primary_key=True)
+    pretty_url = Column(String, index=True)
+    pretty_host = Column(String, index=True)
+    path = Column(String, index=True)
+    scheme = Column(String)
+    port = Column(Integer)
+    method = Column(String)
+    response_status_code = Column(Integer)
+    exception = Column(JSON)
+    request = Column(JSON)
+    response = Column(JSON)
+    fuzz_count = Column(Integer)
+    crawl_count = Column(Integer)
+
+    @classmethod
+    def createFromDWI(cls, dwi:DatabaseWriteItem) -> RR:
+        """
+        Helper method for creating a `RequestResponse` object from a `models.DatabaseWriteItem`
+
+        Args:
+            dwi: Input `DatabaseWriteItem`.
+        """
+        exc = None
+        if dwi.exception is not None:
+            exc = dwi.exception.toJSON()
+
+        resp = None
+        resp_status_code=None
+        if dwi.response is not None:
+            resp = Response(dwi.response.get_state()).toJSON() #type: ignore
+            resp_status_code=dwi.response.status_code
+
+        req = Request(dwi.request.get_state()).toJSON() #type: ignore
+            
+        return cls(pretty_url=dwi.request.pretty_url,
+                pretty_host=dwi.request.pretty_host, path=dwi.request.path,
+                scheme=dwi.request.scheme, port=dwi.request.port,
+                method=dwi.request.method,
+                response_status_code=resp_status_code,
+                exception=exc,
+                request=req,
+                response=resp)
+
