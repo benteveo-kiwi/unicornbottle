@@ -188,7 +188,7 @@ class RequestResponse(Base):
     __tablename__ = "request_response"
 
     id = Column(Integer, primary_key=True)
-    metadata_id = Column(Integer, ForeignKey('endpoint_metadata.id'), nullable=False)
+    metadata_id = Column(Integer, ForeignKey('endpoint_metadata.id'), nullable=False, index=True)
     pretty_url = Column(String, index=True)
     pretty_host = Column(String, index=True)
     path = Column(String, index=True)
