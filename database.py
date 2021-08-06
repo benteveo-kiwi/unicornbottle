@@ -45,6 +45,7 @@ def database_connect(schema : str, create:bool) -> Session:
 
     # Instruct the engine to use the schema for all queries.
     url = get_url()
+
     engine = create_engine(url).execution_options(
             schema_translate_map={None: schema}) # type:ignore
 
