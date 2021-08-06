@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, JSON, ForeignKey, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
-from typing import Dict, Optional, Any, Union, TypeVar, Type
+from sqlalchemy.orm import relationship, RelationshipProperty
+from typing import Dict, Optional, Any, Union, TypeVar, Type, List
 import base64
 import json
 import mitmproxy.net.http
@@ -161,7 +161,7 @@ class EndpointMetadata(Base):
     fuzz_count = Column(Integer, default=0)
     crawl_count = Column(Integer, default=0)
 
-    request_responses = relationship("RequestResponse")
+    request_responses : RelationshipProperty = relationship("RequestResponse") 
 
 class RequestResponse(Base):
     """
