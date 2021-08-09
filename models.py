@@ -144,6 +144,33 @@ class DatabaseWriteItem():
         self.response = response
         self.exception = exception
 
+class Scope(Base):
+    """
+    This table contains basic metadata regarding scope.
+    """
+    __tablename__ = "scope"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False, index=True)
+
+    scope_url : RelationshipProperty = relationship("ScopeUrl") 
+
+class ScopeUrl(Base):
+    """
+    This table stores scope information for specific URLs. Only URLs explicitly
+    included are crawled, and a login_script can optionally be used for each URL.
+
+    PostgreSQL wildcards, like the ones used by the LIKE statement, are allowed
+    on the pretty_url_like column. The "login_script" column refers to login
+    scripts as used and defined by the crawler.
+    """
+    __tablename__ = "scope_url"
+
+    id = Column(Integer, primary_key=True)
+    scope_id = Column(Integer, ForeignKey('scope.id'), nullable=False, index=True)
+    pretty_url_like = Column(String, nullable=False, index=True)
+    login_script = Column(String, nullable=False, index=True)
+
 class EndpointMetadata(Base):
     """
     This table contains metadata related to particular endpoints. Endpoints are
