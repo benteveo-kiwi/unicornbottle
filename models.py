@@ -4,7 +4,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, RelationshipProperty
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.session import Session
-from typing import Dict, Optional, Any, Union, TypeVar, Type, List
+from typing import Dict, Optional, Any, Union, TypeVar, Type, List, Tuple
 import base64
 import json
 import mitmproxy.net.http
@@ -202,7 +202,7 @@ class EndpointMetadata(Base):
     request_responses : RelationshipProperty = relationship("RequestResponse") 
 
     @staticmethod
-    def get_crawl_endpoints(db:Session, scope_name:str, limit:int, max_crawl_count:int) -> List[str]:
+    def get_crawl_endpoints(db:Session, scope_name:str, limit:int, max_crawl_count:int) -> List[Tuple[str, Optional[str]]]:
         """
         Gets endpoints that will be sent to the RabbitMQ queue as crawl tasks.
 
@@ -219,15 +219,15 @@ class EndpointMetadata(Base):
             raise InvalidScopeName("A scope named %s does not exist in the schema" % scope_name)
 
         # Join.
-        join_filter = (EndpointMetadata.pretty_url.like(ScopeURL.pretty_url_like)) & (ScopeURL.scope_id == scope.id)
+        join_filter = (EndpointMetadata.pretty_url.like(ScopeURL.pretty_url_like)) & (ScopeURL.scope_id == scope.id) # type: ignore
         rows = db.query(EndpointMetadata, ScopeURL)\
-                .join(ScopeURL, join_filter)\
-                .filter(EndpointMetadata.method == "GET")
+                .join(ScopeURL, join_filter).filter(EndpointMetadata.method == "GET") # type:ignore
 
         # Filter.
         url_filters = []
         for scope_url in scope.urls:
             url_filters.append(EndpointMetadata.pretty_url.like(scope_url.pretty_url_like))
+
         if len(url_filters) > 0:
             rows = rows.filter(or_(*url_filters))
         if max_crawl_count != -1:
@@ -237,6 +237,8 @@ class EndpointMetadata(Base):
         rows = rows.order_by(EndpointMetadata.crawl_count.asc()).limit(limit)
 
         # Transform.
+
+        print(rows)
         for row in rows.all():
             endpoint_metadata = row[0]
             scope_url = row[1]
