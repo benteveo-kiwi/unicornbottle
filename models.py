@@ -1,6 +1,9 @@
 from sqlalchemy import Column, Integer, String, JSON, ForeignKey, UniqueConstraint, Boolean
+from sqlalchemy import or_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, RelationshipProperty
+from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm.session import Session
 from typing import Dict, Optional, Any, Union, TypeVar, Type, List
 import base64
 import json
@@ -10,6 +13,9 @@ RR = TypeVar('RR', bound='RequestResponse')
 MS = TypeVar('MS', bound='MessageSerializer')
 
 Base : Any = declarative_base()
+
+class InvalidScopeName(Exception):
+    pass
         
 class RequestEncoder(json.JSONEncoder):
     """
@@ -153,7 +159,7 @@ class Scope(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False, index=True)
 
-    scope_url : RelationshipProperty = relationship("ScopeURL") 
+    urls : RelationshipProperty = relationship("ScopeURL") 
 
 class ScopeURL(Base):
     """
@@ -173,7 +179,7 @@ class ScopeURL(Base):
     id = Column(Integer, primary_key=True)
     scope_id = Column(Integer, ForeignKey('scope.id'), nullable=False, index=True)
     pretty_url_like = Column(String, nullable=False, index=True)
-    login_script = Column(String, nullable=False)
+    login_script = Column(String)
     negative = Column(Boolean, default=False)
 
 class EndpointMetadata(Base):
@@ -194,6 +200,51 @@ class EndpointMetadata(Base):
     crawl_count = Column(Integer, default=0)
 
     request_responses : RelationshipProperty = relationship("RequestResponse") 
+
+    @staticmethod
+    def get_crawl_endpoints(db:Session, scope_name:str, limit:int, max_crawl_count:int) -> List[str]:
+        """
+        Gets endpoints that will be sent to the RabbitMQ queue as crawl tasks.
+
+        Args:
+            db: the db as returned by `unicornbottle.database.database_connect`
+            scope_name: the scope as stored in the `Scope.name` model.
+            limit: Absolute maximum number of results to return.
+            max_crawl_count: exclude rows with a `crawl_count` higher than this value.
+        """
+        urls = []
+        try:
+            scope = db.query(Scope).filter(Scope.name == scope_name).one()
+        except NoResultFound:
+            raise InvalidScopeName("A scope named %s does not exist in the schema" % scope_name)
+
+        # Join.
+        join_filter = (EndpointMetadata.pretty_url.like(ScopeURL.pretty_url_like)) & (ScopeURL.scope_id == scope.id)
+        rows = db.query(EndpointMetadata, ScopeURL)\
+                .join(ScopeURL, join_filter)\
+                .filter(EndpointMetadata.method == "GET")
+
+        # Filter.
+        url_filters = []
+        for scope_url in scope.urls:
+            url_filters.append(EndpointMetadata.pretty_url.like(scope_url.pretty_url_like))
+        if len(url_filters) > 0:
+            rows = rows.filter(or_(*url_filters))
+        if max_crawl_count != -1:
+            rows = rows.filter(EndpointMetadata.crawl_count <= max_crawl_count)
+
+        # Order and Limit.
+        rows = rows.order_by(EndpointMetadata.crawl_count.asc()).limit(limit)
+
+        # Transform.
+        for row in rows.all():
+            endpoint_metadata = row[0]
+            scope_url = row[1]
+
+            endpoint_metadata.crawl_count = endpoint_metadata.crawl_count + 1
+            urls.append((endpoint_metadata.pretty_url, scope_url.login_script))
+
+        return urls
 
 class RequestResponse(Base):
     """
