@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, JSON, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, JSON, ForeignKey, UniqueConstraint, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, RelationshipProperty
 from typing import Dict, Optional, Any, Union, TypeVar, Type, List
@@ -153,9 +153,9 @@ class Scope(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False, index=True)
 
-    scope_url : RelationshipProperty = relationship("ScopeUrl") 
+    scope_url : RelationshipProperty = relationship("ScopeURL") 
 
-class ScopeUrl(Base):
+class ScopeURL(Base):
     """
     This table stores scope information for specific URLs. Only URLs explicitly
     included are crawled, and a login_script can optionally be used for each URL.
@@ -163,13 +163,18 @@ class ScopeUrl(Base):
     PostgreSQL wildcards, like the ones used by the LIKE statement, are allowed
     on the pretty_url_like column. The "login_script" column refers to login
     scripts as used and defined by the crawler.
+
+    The negative column determines whether this scope url is meant to be
+    exclusionary, i.e. whether we should exclude URLs that match the
+    pretty_url_like.
     """
     __tablename__ = "scope_url"
 
     id = Column(Integer, primary_key=True)
     scope_id = Column(Integer, ForeignKey('scope.id'), nullable=False, index=True)
     pretty_url_like = Column(String, nullable=False, index=True)
-    login_script = Column(String, nullable=False, index=True)
+    login_script = Column(String, nullable=False)
+    negative = Column(Boolean, default=False)
 
 class EndpointMetadata(Base):
     """
