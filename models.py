@@ -238,7 +238,6 @@ class EndpointMetadata(Base):
 
         # Transform.
 
-        print(rows)
         for row in rows.all():
             endpoint_metadata = row[0]
             scope_url = row[1]
