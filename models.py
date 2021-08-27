@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, JSON, ForeignKey, UniqueConstraint, Boolean
-from sqlalchemy import or_
+from sqlalchemy import or_, not_, and_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, RelationshipProperty
 from sqlalchemy.orm.exc import NoResultFound
@@ -219,17 +219,21 @@ class EndpointMetadata(Base):
             raise InvalidScopeName("A scope named %s does not exist in the schema" % scope_name)
 
         # Join.
-        join_filter = (EndpointMetadata.pretty_url.like(ScopeURL.pretty_url_like)) & (ScopeURL.scope_id == scope.id) # type: ignore
+        join_filter = (EndpointMetadata.pretty_url.like(ScopeURL.pretty_url_like)) & (ScopeURL.scope_id == scope.id) & (ScopeURL.login_script != None) # type: ignore
         rows = db.query(EndpointMetadata, ScopeURL)\
-                .join(ScopeURL, join_filter).filter(EndpointMetadata.method == "GET") # type:ignore
+                .join(ScopeURL, join_filter, isouter=True).filter(EndpointMetadata.method == "GET") # type:ignore
 
         # Filter.
         url_filters = []
         for scope_url in scope.urls:
-            url_filters.append(EndpointMetadata.pretty_url.like(scope_url.pretty_url_like))
+            pretty_url_like = EndpointMetadata.pretty_url.like(scope_url.pretty_url_like)
+            if scope_url.negative:
+                url_filters.append(not_(pretty_url_like))
+            else:
+                url_filters.append(pretty_url_like)
 
         if len(url_filters) > 0:
-            rows = rows.filter(or_(*url_filters))
+            rows = rows.filter(and_(*url_filters))
         if max_crawl_count != -1:
             rows = rows.filter(EndpointMetadata.crawl_count <= max_crawl_count)
 
@@ -237,7 +241,6 @@ class EndpointMetadata(Base):
         rows = rows.order_by(EndpointMetadata.crawl_count.asc()).limit(limit)
 
         # Transform.
-
         for row in rows.all():
             endpoint_metadata = row[0]
             scope_url = row[1]
