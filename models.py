@@ -202,7 +202,9 @@ class EndpointMetadata(Base):
     request_responses : RelationshipProperty = relationship("RequestResponse") 
 
     @staticmethod
-    def get_endpoints_by_scope(db:Session, scope_name:str, limit:int, max_crawl_count:int, method=None, order_by=None) -> Query:
+    def get_endpoints_by_scope(db:Session, scope_name:str, limit:int,
+            max_crawl_count:int, method:Optional[str]=None,
+            order_by:Optional[Column]=None) -> Query:
         """
         Returns the query object required in order to get all endpoints filtered by scope.
 
