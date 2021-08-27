@@ -219,9 +219,11 @@ class EndpointMetadata(Base):
             raise InvalidScopeName("A scope named %s does not exist in the schema" % scope_name)
 
         # Join.
-        join_filter = (EndpointMetadata.pretty_url.like(ScopeURL.pretty_url_like)) & (ScopeURL.scope_id == scope.id) & (ScopeURL.login_script != None) # type: ignore
+        join_filter = (EndpointMetadata.pretty_url.like(ScopeURL.pretty_url_like) & # type: ignore
+                (ScopeURL.scope_id == scope.id) & (ScopeURL.login_script != None)) 
+
         rows = db.query(EndpointMetadata, ScopeURL)\
-                .join(ScopeURL, join_filter, isouter=True).filter(EndpointMetadata.method == "GET") # type:ignore
+                .join(ScopeURL, join_filter, isouter=True).filter(EndpointMetadata.method == "GET") 
 
         # Filter.
         url_filters = []
@@ -302,10 +304,10 @@ class RequestResponse(Base):
         resp = None
         resp_status_code=None
         if dwi.response is not None:
-            resp = Response(dwi.response.get_state()).toJSON() #type: ignore
+            resp = Response(dwi.response.get_state()).toJSON()
             resp_status_code=dwi.response.status_code
 
-        req = Request(dwi.request.get_state()).toJSON() #type: ignore
+        req = Request(dwi.request.get_state()).toJSON()
             
         return cls(pretty_url=dwi.request.pretty_url,
                 pretty_host=dwi.request.pretty_host, path=dwi.request.path,
