@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, JSON, ForeignKey, UniqueConstraint, Boolean
 from sqlalchemy import or_, not_, and_
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, RelationshipProperty
+from sqlalchemy.orm import relationship, RelationshipProperty, Query
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.session import Session
 from typing import Dict, Optional, Any, Union, TypeVar, Type, List, Tuple
@@ -202,17 +202,18 @@ class EndpointMetadata(Base):
     request_responses : RelationshipProperty = relationship("RequestResponse") 
 
     @staticmethod
-    def get_crawl_endpoints(db:Session, scope_name:str, limit:int, max_crawl_count:int) -> List[Tuple[str, Optional[str]]]:
+    def get_endpoints_by_scope(db:Session, scope_name:str, limit:int, max_crawl_count:int, method=None, order_by=None) -> Query:
         """
-        Gets endpoints that will be sent to the RabbitMQ queue as crawl tasks.
+        Returns the query object required in order to get all endpoints filtered by scope.
 
         Args:
             db: the db as returned by `unicornbottle.database.database_connect`
             scope_name: the scope as stored in the `Scope.name` model.
             limit: Absolute maximum number of results to return.
             max_crawl_count: exclude rows with a `crawl_count` higher than this value.
+            method: filter by method if present.
+            order_by: order by. If not present, will sort by crawl_count asc.
         """
-        urls = []
         try:
             scope = db.query(Scope).filter(Scope.name == scope_name).one()
         except NoResultFound:
@@ -222,8 +223,8 @@ class EndpointMetadata(Base):
         join_filter = (EndpointMetadata.pretty_url.like(ScopeURL.pretty_url_like) & # type: ignore
                 (ScopeURL.scope_id == scope.id) & (ScopeURL.login_script != None)) 
 
-        rows = db.query(EndpointMetadata, ScopeURL)\
-                .join(ScopeURL, join_filter, isouter=True).filter(EndpointMetadata.method == "GET") 
+        rows:Query = db.query(EndpointMetadata, ScopeURL)\
+                .join(ScopeURL, join_filter, isouter=True)
 
         # Filter.
         url_filters = []
@@ -234,15 +235,42 @@ class EndpointMetadata(Base):
             else:
                 url_filters.append(pretty_url_like)
 
+        # Optional filters based on function parameters.
         if len(url_filters) > 0:
             rows = rows.filter(and_(*url_filters))
+
         if max_crawl_count != -1:
             rows = rows.filter(EndpointMetadata.crawl_count <= max_crawl_count)
 
-        # Order and Limit.
-        rows = rows.order_by(EndpointMetadata.crawl_count.asc()).limit(limit)
+        if method:
+            rows = rows.filter(EndpointMetadata.method == method)
 
-        # Transform.
+        # Order and Limit.
+        if order_by:
+            rows = rows.order_by(order_by)
+        else:
+            rows = rows.order_by(EndpointMetadata.crawl_count.asc())
+
+        if limit != -1:
+            rows = rows.limit(limit)
+
+        return rows
+
+    @staticmethod
+    def get_crawl_endpoints(db:Session, scope_name:str, limit:int, max_crawl_count:int) -> List[Tuple[str, Optional[str]]]:
+        """
+        Gets endpoints that will be sent to the RabbitMQ queue as crawl tasks.
+
+        Args:
+            db: the db as returned by `unicornbottle.database.database_connect`
+            scope_name: the scope as stored in the `Scope.name` model.
+            limit: Absolute maximum number of results to return.
+            max_crawl_count: exclude rows with a `crawl_count` higher than this value.
+        """
+        rows = EndpointMetadata.get_endpoints_by_scope(db, scope_name, limit, max_crawl_count)
+
+        # Transform and increment crawl_count.
+        urls = []
         for row in rows.all():
             endpoint_metadata = row[0]
             scope_url = row[1]
@@ -251,6 +279,26 @@ class EndpointMetadata(Base):
             urls.append((endpoint_metadata.pretty_url, scope_url.login_script))
 
         return urls
+
+    @staticmethod
+    def discovered_endpoints(db:Session, scope_name:str) -> List:
+        """
+        Obtains endpoints discovered.
+
+        Args:
+            db: the db as returned by `unicornbottle.database.database_connect`
+            scope_name: the scope as stored in the `Scope.name` model.
+        """
+        rows = EndpointMetadata.get_endpoints_by_scope(db, scope_name,
+                limit=-1, max_crawl_count=-1, method=None,
+                order_by=EndpointMetadata.pretty_url)
+
+        endpoints = []
+        for row in rows.all():
+            endpoint_metadata = row[0]
+            endpoints.append(endpoint_metadata)
+
+        return endpoints
 
 class RequestResponse(Base):
     """
