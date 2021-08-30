@@ -1,3 +1,4 @@
+from mitmproxy.net.http.http1 import assemble
 from sqlalchemy import Column, Integer, String, JSON, ForeignKey, UniqueConstraint, Boolean
 from sqlalchemy import or_, not_, and_
 from sqlalchemy.ext.declarative import declarative_base
@@ -367,4 +368,26 @@ class RequestResponse(Base):
                 exception=exc,
                 request=req,
                 response=resp)
+
+    def to_plain(self) -> str:
+        """
+        Convert this database entry to a plaintext representation of request
+        response. A plain text representation in this context means the
+        plaintext of the request concatenated to the plaintext of the response.
+        """
+
+        if not self.request or not self.response:
+            return "[-] Could not generate plaintext representation of request_response."
+
+        request = Request.fromJSON(self.request).toMITM()
+        response = Response.fromJSON(self.response).toMITM()
+
+        request.decode(strict=False)
+        response.decode(strict=False)
+
+        req_string = assemble.assemble_request(request).decode('utf-8', errors='ignore')
+        resp_string = assemble.assemble_response(response).decode('utf-8', errors='ignore')
+
+        return req_string + "\n\n" + resp_string
+
 
