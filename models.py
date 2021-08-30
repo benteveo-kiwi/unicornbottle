@@ -91,7 +91,7 @@ class MessageSerializer():
         return json.dumps(data, cls=RequestEncoder)
 
     @classmethod
-    def fromJSON(cls : Type[MS], json_str : bytes) -> MS:
+    def fromJSON(cls : Type[MS], json_str : Union[bytes, str]) -> MS:
         """
         Creates a Request object from a JSON string.
 
@@ -379,8 +379,8 @@ class RequestResponse(Base):
         if not self.request or not self.response:
             return "[-] Could not generate plaintext representation of request_response."
 
-        request = Request.fromJSON(self.request).toMITM()
-        response = Response.fromJSON(self.response).toMITM()
+        request = Request.fromJSON(str(self.request)).toMITM()
+        response = Response.fromJSON(str(self.response)).toMITM()
 
         request.decode(strict=False)
         response.decode(strict=False)
@@ -388,6 +388,6 @@ class RequestResponse(Base):
         req_string = assemble.assemble_request(request).decode('utf-8', errors='ignore')
         resp_string = assemble.assemble_response(response).decode('utf-8', errors='ignore')
 
-        return req_string + "\n\n" + resp_string
+        return str(req_string + "\n\n" + resp_string)
 
 
