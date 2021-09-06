@@ -198,7 +198,9 @@ class EndpointMetadata(Base):
     method = Column(String, index=True)
 
     fuzz_count = Column(Integer, default=0)
-    crawl_count = Column(Integer, default=0)
+
+    crawl_count = Column(Integer, default=0) # Successful crawl count.
+    crawl_fail_count = Column(Integer, default=0) # Failed crawl count.
 
     request_responses : RelationshipProperty = relationship("RequestResponse") 
 
