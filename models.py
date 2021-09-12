@@ -200,7 +200,17 @@ class EndpointMetadata(Base):
     fuzz_count = Column(Integer, default=0)
 
     crawl_count = Column(Integer, default=0) # Successful crawl count.
-    crawl_fail_count = Column(Integer, default=0) # Failed crawl count.
+
+    # Crawl failed due to bad HTTP status code or bad URL in general.  The idea
+    # is that these kinds of failures may occur even if there are no bugs in
+    # our code. E.g. a broken link may trigger this error.
+    crawl_fail_count = Column(Integer, default=0) 
+
+    # Crawl failed due to unhandled exception.  These generally should be
+    # indicative of a failure on our end to either handle a specific scenario,
+    # and should not occur in normal operations. E.g. An error with the
+    # login_script may trigger this flag.
+    crawl_exception_count = Column(Integer, default=0) 
 
     request_responses : RelationshipProperty = relationship("RequestResponse") 
 
