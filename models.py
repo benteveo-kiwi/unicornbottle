@@ -197,22 +197,26 @@ class EndpointMetadata(Base):
     pretty_url = Column(String, index=True)
     method = Column(String, index=True)
 
-    fuzz_count = Column(Integer, default=0)
+    fuzz_count = Column(Integer, default=0, nullable=False)
 
-    crawl_count = Column(Integer, default=0) # Successful crawl count.
+    crawl_count = Column(Integer, default=0, nullable=False) # Successful crawl count.
 
     # Crawl failed due to bad HTTP status code or bad URL in general.  The idea
     # is that these kinds of failures may occur even if there are no bugs in
     # our code. E.g. a broken link may trigger this error.
-    crawl_fail_count = Column(Integer, default=0) 
+    crawl_fail_count = Column(Integer, default=0, nullable=False) 
 
     # Crawl failed due to unhandled exception.  These generally should be
     # indicative of a failure on our end to either handle a specific scenario,
     # and should not occur in normal operations. E.g. An error with the
     # login_script may trigger this flag.
-    crawl_exception_count = Column(Integer, default=0) 
+    crawl_exception_count = Column(Integer, default=0, nullable=False) 
 
     request_responses : RelationshipProperty = relationship("RequestResponse") 
+
+    def __repr__(self):
+        return "%s (%s) fuzz_count:%s crawl_count:%s crawl_fail_count:%s crawl_exception_count:%s" % (self.pretty_url,
+                self.method, self.fuzz_count, self.crawl_count, self.crawl_fail_count, self.crawl_exception_count)
 
     @staticmethod
     def get_endpoints_by_scope(db:Session, scope_name:str, limit:int,
