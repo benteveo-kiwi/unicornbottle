@@ -1,6 +1,5 @@
 from functools import partial
-from http_proxy import log
-from http_proxy.models import Request, Response
+from unicornbottle.models import Request, Response
 from io import BytesIO
 from sqlalchemy import select, and_, exc
 from sqlalchemy.orm.session import Session
