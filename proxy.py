@@ -89,6 +89,20 @@ class HTTPProxyClient(object):
             self.threads[target] = self.thread_spawn(target=target,
                     name=target.__name__)
 
+    def threads_shutdown(self) -> None:
+        """
+        This function attempts to safely shutdown all threads. It is called
+        when the calling process is being shut down.
+        """
+        logger.info("Stopping consumption of queues.")
+        if self.rabbit_connection is not None and self.channel is not None:
+            self.rabbit_connection.add_callback_threadsafe(self.channel.stop_consuming)
+
+        logger.info("Shutting down Postgres thread.")
+        self.shutting_down = True
+
+        logger.info("Exited.")
+
     def threads_alive(self) -> bool:
         """
         Checks that all threads are currently alive.
