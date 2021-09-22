@@ -161,7 +161,7 @@ class FuzzLocation():
     within it and is used for the generation of modified HTTP requests.
     """
 
-    def __init__(self, state:dict, param_type:FuzzParamType, param_name:bytes):
+    def __init__(self, state:dict, param_type:FuzzParamType, param_name:str):
         """
         Main constructor.
 
@@ -176,7 +176,7 @@ class FuzzLocation():
         self.param_type = param_type
         self.param_name = param_name
 
-    def fuzz(self, value:bytes):
+    def fuzz(self, value:str) -> mitmproxy.net.http.Request:
         """
         Inserts the value at the insertion point.
 

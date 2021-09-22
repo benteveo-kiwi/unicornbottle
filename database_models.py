@@ -157,7 +157,6 @@ class EndpointMetadata(Base):
             endpoint_metadata = row[0]
             scope_url = row[1]
 
-            endpoint_metadata.crawl_count = endpoint_metadata.crawl_count + 1
             urls.append((endpoint_metadata.pretty_url, scope_url.login_script))
 
         return urls
