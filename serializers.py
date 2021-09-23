@@ -206,3 +206,17 @@ class FuzzLocation():
 
         return request
 
+    @staticmethod
+    def generate(request:mitmproxy.net.http.Request) -> List:
+        """
+        Generates fuzz locations based on a request.
+
+        Args:
+            request: a mitm http request.
+
+        Returns: 
+            A list of fuzz locations.
+        """
+
+        return []
+

@@ -7,6 +7,8 @@ from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.session import Session
 from typing import Dict, Optional, Any, Union, TypeVar, Type, List, Tuple
 from unicornbottle.serializers import Request, Response, ExceptionSerializer, DatabaseWriteItem
+import mitmproxy
+import json
 
 RR = TypeVar('RR', bound='RequestResponse')
 Base : Any = declarative_base()
@@ -258,6 +260,7 @@ class RequestResponse(Base):
             return "[-] Could not generate plaintext representation of request_response."
 
         request = Request.fromJSON(str(self.request)).toMITM()
+
         response = Response.fromJSON(str(self.response)).toMITM()
 
         request.decode(strict=False)
@@ -267,5 +270,14 @@ class RequestResponse(Base):
         resp_string = assemble.assemble_response(response).decode('utf-8', errors='ignore')
 
         return str(req_string + "\n\n" + resp_string)
+
+    def get_mitmproxy_request(self) -> mitmproxy.net.http.Request:
+        """
+        Converts this database row to a mitmproxy representation of an HTTP
+        request.
+        """
+        req = Request.fromJSON(self.request)
+
+        return req.toMITM()
 
 
