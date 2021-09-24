@@ -276,7 +276,7 @@ class RequestResponse(Base):
         Converts this database row to a mitmproxy representation of an HTTP
         request.
         """
-        req = Request.fromJSON(self.request)
+        req = Request.fromJSON(str(self.request))
 
         return req.toMITM()
 
