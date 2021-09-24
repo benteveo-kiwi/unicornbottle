@@ -80,7 +80,7 @@ class EndpointMetadata(Base):
     request_responses : RelationshipProperty = relationship("RequestResponse") 
 
     def __repr__(self) -> str:
-        return "%s (%s) fuzz_count:%s crawl_count:%s crawl_fail_count:%s crawl_exception_count:%s" % (self.pretty_url,
+        return "<EndpointMetadata %s (%s) fuzz_count:%s crawl_count:%s crawl_fail_count:%s crawl_exception_count:%s>" % (self.pretty_url,
                 self.method, self.fuzz_count, self.crawl_count, self.crawl_fail_count, self.crawl_exception_count)
 
     @staticmethod
