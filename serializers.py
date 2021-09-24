@@ -176,6 +176,9 @@ class FuzzLocation():
         self.param_type = param_type
         self.param_name = param_name
 
+    def __repr__(self) -> str:
+        return "<FuzzLocation %s (%s)>" % (self.param_name, self.param_type)
+
     def fuzz(self, value:str) -> mitmproxy.net.http.Request:
         """
         Inserts the value at the insertion point.
@@ -203,6 +206,8 @@ class FuzzLocation():
             request.text = json.dumps(body_json)
         elif self.param_type == FuzzParamType.HEADER:
             request.headers[self.param_name] = value
+        else:
+            raise Exception("Unhandled FuzzParamType")
 
         return request
 
@@ -217,6 +222,30 @@ class FuzzLocation():
         Returns: 
             A list of fuzz locations.
         """
+        fuzz_locations = []
+        for param_type in FuzzParamType:
+            if param_type == FuzzParamType.PARAM_URL:
+                for param in request.query:
+                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.PARAM_URL, param))
+            elif param_type == FuzzParamType.PARAM_BODY:
+                for param in request.urlencoded_form:
+                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.PARAM_BODY, param))
+            elif param_type == FuzzParamType.PARAM_MULTIPART:
+                for param in request.multipart_form:
+                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.PARAM_MULTIPART, param))
+            elif param_type == FuzzParamType.PARAM_JSON:
+                try:
+                    body_json = json.loads(request.content)
+                except json.JSONDecodeError:
+                    continue
 
-        return []
+                for param in body_json:
+                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.PARAM_JSON, param))
+            elif param_type == FuzzParamType.HEADER:
+                for param in request.headers:
+                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.HEADER, param))
+            else:
+                raise Exception("Unhandled FuzzParamType.")
+
+        return fuzz_locations
 
