@@ -1,4 +1,4 @@
-from enum import Enum
+from enum import IntEnum
 from typing import Dict, Optional, Any, Union, TypeVar, Type, List, Tuple
 import base64
 import json
@@ -145,7 +145,7 @@ class DatabaseWriteItem():
 class InvalidFuzzLocation(Exception):
     pass
 
-class FuzzParamType(Enum):
+class FuzzParamType(IntEnum):
     PARAM_URL = 1
     PARAM_BODY = 2
     PARAM_MULTIPART = 3
@@ -249,3 +249,27 @@ class FuzzLocation():
 
         return fuzz_locations
 
+    def toJSON(self) -> str:
+        """
+        Converts the object into a JSON string. Byte arrays are encoded into
+        base64.
+        """
+        
+        data = {
+            "state": self.base_request_state,
+            "param_type": self.param_type,
+            "param_name": self.param_name
+        }
+        return json.dumps(data, cls=RequestEncoder)
+
+    @classmethod
+    def fromJSON(cls : Type[MS], json_str : Union[bytes, str]) -> MS:
+        """
+        Creates a Request object from a JSON string.
+
+        Raises:
+            json.decoder.JSONDecodeError: if you give it bad JSON.
+        """
+        j = json.loads(json_str)
+        state = json.loads(json_str, cls=RequestDecoder)
+        return cls(state)
