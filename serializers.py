@@ -5,6 +5,7 @@ import json
 import mitmproxy.net.http
 
 MS = TypeVar('MS', bound='MessageSerializer')
+FL = TypeVar('FL', bound='FuzzLocation')
 
 class RequestEncoder(json.JSONEncoder):
     """
@@ -263,13 +264,13 @@ class FuzzLocation():
         return json.dumps(data, cls=RequestEncoder)
 
     @classmethod
-    def fromJSON(cls : Type[MS], json_str : Union[bytes, str]) -> MS:
+    def fromJSON(cls : Type[FL], json_str : Union[bytes, str]) -> FL:
         """
         Creates a Request object from a JSON string.
 
         Raises:
             json.decoder.JSONDecodeError: if you give it bad JSON.
         """
-        j = json.loads(json_str)
-        state = json.loads(json_str, cls=RequestDecoder)
-        return cls(state)
+        j = json.loads(json_str, cls=RequestDecoder)
+        
+        return cls(j['state'], FuzzParamType(j['param_type']), j['param_name'])
