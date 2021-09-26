@@ -49,10 +49,17 @@ class HTTPProxyClient(object):
     # writing.
     MAX_BULK_WRITE = 100
 
-    def __init__(self) -> None:
+    def __init__(self, is_fuzzer=False) -> None:
         """
         Main constructor. `threads_start()` should normally be called by the
         instantiator immediately after construction.
+
+        Args:
+            is_fuzzer: set to True when this class is instantiated by the
+                crawler. This results in the RequestResponse.sent_by_fuzzer flag
+                being set in the DB. Additionally new EndpointMetadata won't be
+                created if it doesn't exist already in order to prevent polluting
+                the database with garbage.
         """
         self.lock = threading.Lock()
         self.threads : Dict[Callable, threading.Thread] = {}
@@ -65,6 +72,7 @@ class HTTPProxyClient(object):
         
         self.db_write_queue : queue.SimpleQueue = queue.SimpleQueue()
         self.db_connections : dict[str, Session] = {}
+        self.is_fuzzer = is_fuzzer
 
     def threads_start(self) -> None:
         """
@@ -320,7 +328,7 @@ class HTTPProxyClient(object):
 
         return str(target_guid)
 
-    def send_request(self, request : mitmproxy.net.http.Request, corr_id : str) -> mitmproxy.net.http.Response:
+    def send_request(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None) -> mitmproxy.net.http.Response:
         """
         Serialize and send the request to RabbitMQ, receive the response and
         unserialize.
@@ -339,7 +347,8 @@ class HTTPProxyClient(object):
 
         Args:
             request: A mitmproxy Request object.
-            corr_id: the correlation id for this request, a uuid.
+            corr_id: the correlation id for this request, a uuid. If none is
+                provided, one will be generated.
 
         Raises:
             TimeoutException: self.PROCESS_TIME_LIMIT exceeded, request timeout.
@@ -349,6 +358,8 @@ class HTTPProxyClient(object):
                 serves as a form of precarious auth.
         """
         target_guid = self.target_guid(request)
+        if not corr_id:
+            corr_id = str(uuid.uuid4()) 
 
         try:
             if not self.threads_alive() or (self.rabbit_connection is None or self.channel is None):

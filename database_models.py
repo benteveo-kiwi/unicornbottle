@@ -197,6 +197,7 @@ class RequestResponse(Base):
     - crawl_count: the number of times we have initiated a crawl from this URL.
       Our crawling strategy is recursive and time-bound so we prioritize
       starting from endpoints we have not yet scanned from where we can.
+    - sent_by_fuzzer: If the request was sent by the fuzzer originally.
 
     Please note that a different schema is used for each "target", in order to
     avoid all requests ever sent through the proxy from being stored in a
@@ -212,6 +213,7 @@ class RequestResponse(Base):
     pretty_url = Column(String, index=True)
     pretty_host = Column(String, index=True)
     path = Column(String, index=True)
+    sent_by_fuzzer = Column(Boolean, default=False, index=True)
     scheme = Column(String)
     port = Column(Integer)
     method = Column(String)
