@@ -213,7 +213,7 @@ class RequestResponse(Base):
     pretty_url = Column(String, index=True)
     pretty_host = Column(String, index=True)
     path = Column(String, index=True)
-    sent_by_fuzzer = Column(Boolean, default=False, index=True)
+    # sent_by_fuzzer = Column(Boolean, default=False, index=True)
     scheme = Column(String)
     port = Column(Integer)
     method = Column(String)
