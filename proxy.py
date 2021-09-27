@@ -172,11 +172,16 @@ class HTTPProxyClient(object):
                 em = conn.execute(stmt).scalar()
 
                 if em is None:
+                    # Avoid polluting EndpointMetadata with fuzzer-generated garbage.
+                    if self.is_fuzzer:
+                        continue
+
                     em = EndpointMetadata(pretty_url=req_res.pretty_url, method=req_res.method)
                     conn.add(em)
                     conn.commit()
 
                 req_res.metadata_id = em.id
+                req_res.sent_by_fuzzer = self.is_fuzzer
 
                 conn.add(req_res)
 
