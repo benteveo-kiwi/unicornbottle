@@ -6,6 +6,10 @@ from sqlalchemy import pool
 from alembic import context
 
 from unicornbottle import database
+from unicornbottle import database_models
+import logging
+
+logger = logging.getLogger(__name__)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -20,7 +24,7 @@ fileConfig(config.config_file_name)
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-target_metadata = None
+target_metadata = database_models.Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -68,11 +72,16 @@ def run_migrations_online():
 
     with connectable.connect() as connection:
         # TODO: detect all schema names.
+        # WIP obtained from here: https://stackoverflow.com/questions/21109218/alembic-support-for-multiple-postgres-schemas/44929128#44929128
         all_schema_names = ["d8aab38c-7d05-42b8-8a0e-f96298288051"]
         for tenant_schema_name in all_schema_names:
             conn = connection.execution_options(schema_translate_map={None: tenant_schema_name})
+            conn.execute('SET search_path TO "{schema}"'.format(schema=tenant_schema_name))
+
+            print("Migrating tenant schema %s" % tenant_schema_name)
+
             context.configure(
-                connection=connection, target_metadata=target_metadata
+                connection=conn, target_metadata=target_metadata, version_table_schema=tenant_schema_name
             )
 
             with context.begin_transaction():
