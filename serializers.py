@@ -3,6 +3,10 @@ from typing import Dict, Optional, Any, Union, TypeVar, Type, List, Tuple
 import base64
 import json
 import mitmproxy.net.http
+import os
+import subprocess
+import tempfile
+import uuid
 
 MS = TypeVar('MS', bound='MessageSerializer')
 FL = TypeVar('FL', bound='FuzzLocation')
@@ -153,6 +157,9 @@ class FuzzParamType(IntEnum):
     PARAM_JSON = 4
     HEADER = 5
 
+class InvalidLoginScript(Exception):
+    pass
+
 class FuzzLocation():
     """
     This class represents a location within a HTTP Request where we will be
@@ -162,7 +169,7 @@ class FuzzLocation():
     within it and is used for the generation of modified HTTP requests.
     """
 
-    def __init__(self, state:dict, param_type:FuzzParamType, param_name:str):
+    def __init__(self, state:dict, param_type:FuzzParamType, param_name:str, login_script:Optional[str]=None):
         """
         Main constructor.
 
@@ -171,23 +178,73 @@ class FuzzLocation():
                 mitmproxy.Request.get_state() method.
             param_type: fuzz parameter type. see `FuzzParamType`.
             param_name: parameter name.
+            login_script: login script if required to fuzz this endpoint. The
+                login script is called only once per FuzzLocation.
         """
         self.base_request_state = state
 
         self.param_type = param_type
         self.param_name = param_name
+        self.login_script = login_script
+
+        self.login_data:Optional[dict] = None
 
     def __repr__(self) -> str:
         return "<FuzzLocation %s (%s)>" % (self.param_name, self.param_type)
 
+    def get_login_data(self) -> dict:
+        """
+        On the first run, we execute login_script and obtain the data.
+        Subsequent runs return cached data.
+        """
+        
+        if self.login_script is None:
+            raise InvalidLoginScript("Called without a login_script.")
+
+        if self.login_data is None:
+            tmp_filename = "/tmp/%s.temp" % uuid.uuid4()
+            try:
+                if not all(c.isdigit() or c.islower() or c == "_" for c in self.login_script):
+                    raise InvalidLoginScript("Invalid login_script %s" % self.login_script)
+
+                # We can call passwordless sudo here because of an entry in /etc/sudoers created by SaltStack.
+                subprocess.call(["sudo", "-u", "crawler", "node", "/home/crawler/ub-crawler/src/login/"+self.login_script+".js", tmp_filename])
+
+                self.login_data = json.loads(open(tmp_filename, 'r').read())
+
+                if self.login_data is None:
+                    raise InvalidLoginScript()
+
+                return self.login_data
+            finally:
+                os.unlink(tmp_filename)
+            
+        else:
+            return self.login_data
+    
+    def authenticate_request(self, req:mitmproxy.net.http.Request) -> mitmproxy.net.http.Request:
+        """
+        Authenticates a request. This is done by calling the login script and
+        parsing the output file. 
+        """
+        login_data = self.get_login_data()
+        print("ooo got login data")
+        print(login_data)
+        print("end ooo")
+
+        return req
+
     def fuzz(self, value:str) -> mitmproxy.net.http.Request:
         """
-        Inserts the value at the insertion point.
+        Inserts the value at the insertion point. If a login script has been
+        set on the constructor then we are going to attempt to authenticate
 
         Args:
             value: the value to insert into the request.
         """
         request = mitmproxy.net.http.Request(**dict(self.base_request_state))
+        if self.login_script:
+            request = self.authenticate_request(request)
 
         if self.param_type == FuzzParamType.PARAM_URL:
             request.query[self.param_name] = value
