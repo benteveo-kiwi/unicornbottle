@@ -1,1 +1,1 @@
-mypy . --exclude tests
+mypy . --exclude '(tests|migrations)'
