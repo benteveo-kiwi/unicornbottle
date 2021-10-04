@@ -49,7 +49,7 @@ class HTTPProxyClient(object):
     # writing.
     MAX_BULK_WRITE = 100
 
-    def __init__(self, is_fuzzer=False) -> None:
+    def __init__(self, is_fuzzer:bool=False) -> None:
         """
         Main constructor. `threads_start()` should normally be called by the
         instantiator immediately after construction.
