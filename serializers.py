@@ -188,6 +188,7 @@ class FuzzLocation():
         self.login_script = login_script
 
         self.login_data:Optional[dict] = None
+        self.tmp_filename = "/tmp/%s.temp" % uuid.uuid4()
 
     def __repr__(self) -> str:
         return "<FuzzLocation %s (%s)>" % (self.param_name, self.param_type)
@@ -202,22 +203,21 @@ class FuzzLocation():
             raise InvalidLoginScript("Called without a login_script.")
 
         if self.login_data is None:
-            tmp_filename = "/tmp/%s.temp" % uuid.uuid4()
             try:
                 if not all(c.isdigit() or c.islower() or c == "_" for c in self.login_script):
                     raise InvalidLoginScript("Invalid login_script %s" % self.login_script)
 
                 # We can call passwordless sudo here because of an entry in /etc/sudoers created by SaltStack.
-                subprocess.call(["sudo", "-u", "crawler", "node", "/home/crawler/ub-crawler/src/login/"+self.login_script+".js", tmp_filename])
+                subprocess.call(["sudo", "-u", "crawler", "node", "/home/crawler/ub-crawler/src/login/"+self.login_script+".js", self.tmp_filename])
 
-                self.login_data = json.loads(open(tmp_filename, 'r').read())
+                self.login_data = json.loads(open(self.tmp_filename, 'r').read())
 
                 if self.login_data is None:
                     raise InvalidLoginScript()
 
                 return self.login_data
             finally:
-                os.unlink(tmp_filename)
+                os.unlink(self.tmp_filename)
             
         else:
             return self.login_data
@@ -228,9 +228,9 @@ class FuzzLocation():
         parsing the output file. 
         """
         login_data = self.get_login_data()
-        print("ooo got login data")
-        print(login_data)
-        print("end ooo")
+        for cookie in login_data['cookies']:
+
+            req.cookies[cookie['name']] = cookie['value']
 
         return req
 
