@@ -209,6 +209,7 @@ class FuzzLocation():
 
                 # We can call passwordless sudo here because of an entry in /etc/sudoers created by SaltStack.
                 subprocess.call(["sudo", "-u", "crawler", "node", "/home/crawler/ub-crawler/src/login/"+self.login_script+".js", self.tmp_filename])
+                subprocess.call(["sudo", "-u", "crawler", "chown", "fuzzer:fuzzer", self.tmp_filename])
 
                 self.login_data = json.loads(open(self.tmp_filename, 'r').read())
 
@@ -316,7 +317,8 @@ class FuzzLocation():
         data = {
             "state": self.base_request_state,
             "param_type": self.param_type,
-            "param_name": self.param_name
+            "param_name": self.param_name,
+            "login_script": self.login_script
         }
         return json.dumps(data, cls=RequestEncoder)
 
@@ -330,4 +332,9 @@ class FuzzLocation():
         """
         j = json.loads(json_str, cls=RequestDecoder)
         
-        return cls(j['state'], FuzzParamType(j['param_type']), j['param_name'])
+        try: 
+            login_script = j['login_script']
+        except KeyError:
+            login_script = None
+
+        return cls(j['state'], FuzzParamType(j['param_type']), j['param_name'], login_script)
