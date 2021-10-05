@@ -209,7 +209,7 @@ class FuzzLocation():
 
                 # We can call passwordless sudo here because of an entry in /etc/sudoers created by SaltStack.
                 subprocess.call(["sudo", "-u", "crawler", "node", "/home/crawler/ub-crawler/src/login/"+self.login_script+".js", self.tmp_filename])
-                subprocess.call(["sudo", "-u", "crawler", "chown", "fuzzer:fuzzer", self.tmp_filename])
+
 
                 self.login_data = json.loads(open(self.tmp_filename, 'r').read())
 
@@ -218,7 +218,8 @@ class FuzzLocation():
 
                 return self.login_data
             finally:
-                os.unlink(self.tmp_filename)
+                # Can't call unlink because file is owned by crawler.
+                subprocess.call(["sudo", "-u", "crawler", "rm", self.tmp_filename])
             
         else:
             return self.login_data
