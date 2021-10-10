@@ -272,12 +272,13 @@ class FuzzLocation():
         return request
 
     @staticmethod
-    def generate(request:mitmproxy.net.http.Request) -> List:
+    def generate(request:mitmproxy.net.http.Request, login_script:Optional[str]=None) -> List:
         """
         Generates fuzz locations based on a request.
 
         Args:
             request: a mitm http request.
+            login_script: the login_scripts for these fl.
 
         Returns: 
             A list of fuzz locations.
@@ -286,13 +287,13 @@ class FuzzLocation():
         for param_type in FuzzParamType:
             if param_type == FuzzParamType.PARAM_URL:
                 for param in request.query:
-                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.PARAM_URL, param))
+                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.PARAM_URL, param, login_script))
             elif param_type == FuzzParamType.PARAM_BODY:
                 for param in request.urlencoded_form:
-                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.PARAM_BODY, param))
+                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.PARAM_BODY, param, login_script))
             elif param_type == FuzzParamType.PARAM_MULTIPART:
                 for param in request.multipart_form:
-                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.PARAM_MULTIPART, param))
+                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.PARAM_MULTIPART, param, login_script))
             elif param_type == FuzzParamType.PARAM_JSON:
                 try:
                     body_json = json.loads(request.content)
@@ -300,10 +301,10 @@ class FuzzLocation():
                     continue
 
                 for param in body_json:
-                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.PARAM_JSON, param))
+                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.PARAM_JSON, param, login_script))
             elif param_type == FuzzParamType.HEADER:
                 for param in request.headers:
-                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.HEADER, param))
+                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.HEADER, param, login_script))
             else:
                 raise Exception("Unhandled FuzzParamType.")
 
