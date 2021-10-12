@@ -169,11 +169,13 @@ class FuzzLocation():
     within it and is used for the generation of modified HTTP requests.
     """
 
-    def __init__(self, state:dict, param_type:FuzzParamType, param_name:str, login_script:Optional[str]=None):
+    def __init__(self, req_resp_id:int, state:dict, param_type:FuzzParamType, param_name:str, login_script:Optional[str]=None):
         """
         Main constructor.
 
         Args:
+            req_resp_id: the unique id for this request_response object as
+                stored in the database.
             state: request state as exported by the
                 mitmproxy.Request.get_state() method.
             param_type: fuzz parameter type. see `FuzzParamType`.
@@ -181,6 +183,7 @@ class FuzzLocation():
             login_script: login script if required to fuzz this endpoint. The
                 login script is called only once per FuzzLocation.
         """
+        self.req_resp_id = req_resp_id
         self.base_request_state = state
 
         self.param_type = param_type
@@ -272,28 +275,37 @@ class FuzzLocation():
         return request
 
     @staticmethod
-    def generate(request:mitmproxy.net.http.Request, login_script:Optional[str]=None) -> List:
+    def generate(req_resp_id:int, request:mitmproxy.net.http.Request, login_script:Optional[str]=None) -> List:
         """
         Generates fuzz locations based on a request.
 
         Args:
+            req_resp_id: the unique id for this request_response object as
+                stored in the database.
             request: a mitm http request.
             login_script: the login_scripts for these fl.
 
         Returns: 
-            A list of fuzz locations.
+            A list of FuzzLocation.
         """
         fuzz_locations = []
         for param_type in FuzzParamType:
+
             if param_type == FuzzParamType.PARAM_URL:
                 for param in request.query:
-                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.PARAM_URL, param, login_script))
+                    fuzz_locations.append(FuzzLocation(req_resp_id,
+                        request.get_state(), FuzzParamType.PARAM_URL, param, login_script))
+
             elif param_type == FuzzParamType.PARAM_BODY:
                 for param in request.urlencoded_form:
-                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.PARAM_BODY, param, login_script))
+                    fuzz_locations.append(FuzzLocation(req_resp_id,
+                        request.get_state(), FuzzParamType.PARAM_BODY, param, login_script))
+
             elif param_type == FuzzParamType.PARAM_MULTIPART:
                 for param in request.multipart_form:
-                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.PARAM_MULTIPART, param, login_script))
+                    fuzz_locations.append(FuzzLocation(req_resp_id,
+                        request.get_state(), FuzzParamType.PARAM_MULTIPART, param, login_script))
+
             elif param_type == FuzzParamType.PARAM_JSON:
                 try:
                     body_json = json.loads(request.content)
@@ -301,10 +313,14 @@ class FuzzLocation():
                     continue
 
                 for param in body_json:
-                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.PARAM_JSON, param, login_script))
+                    fuzz_locations.append(FuzzLocation(req_resp_id,
+                        request.get_state(), FuzzParamType.PARAM_JSON, param, login_script))
+
             elif param_type == FuzzParamType.HEADER:
                 for param in request.headers:
-                    fuzz_locations.append(FuzzLocation(request.get_state(), FuzzParamType.HEADER, param, login_script))
+                    fuzz_locations.append(FuzzLocation(req_resp_id,
+                        request.get_state(), FuzzParamType.HEADER, param, login_script))
+
             else:
                 raise Exception("Unhandled FuzzParamType.")
 
@@ -317,6 +333,7 @@ class FuzzLocation():
         """
         
         data = {
+            "req_resp_id": self.req_resp_id,
             "state": self.base_request_state,
             "param_type": self.param_type,
             "param_name": self.param_name,
@@ -330,7 +347,8 @@ class FuzzLocation():
         Creates a Request object from a JSON string.
 
         Raises:
-            json.decoder.JSONDecodeError: if you give it bad JSON.
+            json.decoder.JSONDecodeError: if you give it bad JSON, which would
+                be _rude_.
         """
         j = json.loads(json_str, cls=RequestDecoder)
         
@@ -339,4 +357,4 @@ class FuzzLocation():
         except KeyError:
             login_script = None
 
-        return cls(j['state'], FuzzParamType(j['param_type']), j['param_name'], login_script)
+        return cls(j['req_resp_id'], j['state'], FuzzParamType(j['param_type']), j['param_name'], login_script)
