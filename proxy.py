@@ -171,10 +171,13 @@ class HTTPProxyClient(object):
 
                 em = conn.execute(stmt).scalar()
 
+                # Avoid polluting EndpointMetadata with fuzzer-generated
+                # garbage. Requests can be created by fuzzer if an issue is
+                # found.
+                if self.is_fuzzer:
+                    continue
+
                 if em is None:
-                    # Avoid polluting EndpointMetadata with fuzzer-generated garbage.
-                    if self.is_fuzzer:
-                        continue
 
                     em = EndpointMetadata(pretty_url=req_res.pretty_url, method=req_res.method)
                     conn.add(em)

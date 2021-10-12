@@ -282,4 +282,16 @@ class RequestResponse(Base):
 
         return req.toMITM()
 
+class Pwnage(Base):
+    """
+    This database table stores any and all pwnage.
+    """
+    __tablename__ = "pwnage"
 
+    id = Column(Integer, primary_key=True)
+    request_response_id = Column(Integer, ForeignKey('request_response.id'), nullable=False, index=True)
+
+    name = Column(String, nullable=False)
+    description = Column(String, nullable=False)
+
+    urls : RelationshipProperty = relationship("RequestResponse") 
