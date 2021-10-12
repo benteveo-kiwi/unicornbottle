@@ -239,6 +239,18 @@ class FuzzLocation():
 
         return req
 
+    def get_baseline(self) -> mitmproxy.net.http.Request:
+        """
+        Gets the request to fuzz without any modifications except for
+        authentication. If authentication is required for this fuzz location,
+        it authenticates the request prior to returning it.
+        """
+        request = mitmproxy.net.http.Request(**dict(self.base_request_state))
+        if self.login_script:
+            request = self.authenticate_request(request)
+
+        return request
+
     def fuzz(self, value:str) -> mitmproxy.net.http.Request:
         """
         Inserts the value at the insertion point. If a login script has been
@@ -247,9 +259,7 @@ class FuzzLocation():
         Args:
             value: the value to insert into the request.
         """
-        request = mitmproxy.net.http.Request(**dict(self.base_request_state))
-        if self.login_script:
-            request = self.authenticate_request(request)
+        request = self.get_baseline()
 
         if self.param_type == FuzzParamType.PARAM_URL:
             request.query[self.param_name] = value
