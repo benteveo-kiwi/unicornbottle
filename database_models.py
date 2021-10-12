@@ -294,4 +294,4 @@ class Pwnage(Base):
     name = Column(String, nullable=False)
     description = Column(String, nullable=False)
 
-    urls : RelationshipProperty = relationship("RequestResponse") 
+    request_responses : RelationshipProperty = relationship("RequestResponse") 
