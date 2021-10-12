@@ -166,10 +166,6 @@ class HTTPProxyClient(object):
             conn = self.db_connections[target_guid]
 
             for req_res in items_to_write[target_guid]:
-                stmt = select(EndpointMetadata).where(and_(EndpointMetadata.pretty_url == req_res.pretty_url, # type:ignore 
-                    EndpointMetadata.method == req_res.method))
-
-                em = conn.execute(stmt).scalar()
 
                 # Avoid polluting EndpointMetadata with fuzzer-generated
                 # garbage. Requests can be created by fuzzer if an issue is
@@ -177,8 +173,12 @@ class HTTPProxyClient(object):
                 if self.is_fuzzer:
                     continue
 
-                if em is None:
+                stmt = select(EndpointMetadata).where(and_(EndpointMetadata.pretty_url == req_res.pretty_url, # type:ignore 
+                    EndpointMetadata.method == req_res.method))
 
+                em = conn.execute(stmt).scalar()
+
+                if em is None:
                     em = EndpointMetadata(pretty_url=req_res.pretty_url, method=req_res.method)
                     conn.add(em)
                     conn.commit()
@@ -387,12 +387,16 @@ class HTTPProxyClient(object):
         except Exception as e:
             # Couldn't successfully retrieve a response for this request. Still write to DB.
             exc_info = ExceptionSerializer(type(e).__name__, str(e), traceback.format_exc())
-            dwr = DatabaseWriteItem(target_guid, request, response=None, exception=exc_info)
+            dwr = DatabaseWriteItem(target_guid=target_guid, request=request,
+                    response=None, exception=exc_info)
+
             self.db_write_queue.put(dwr)
 
             raise
         else:
-            dwr = DatabaseWriteItem(target_guid, request, response, exception=None)
+            dwr = DatabaseWriteItem(target_guid=target_guid, request=request,
+                    response=response, exception=None)
+
             self.db_write_queue.put(dwr)
 
         return response
