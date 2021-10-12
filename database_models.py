@@ -1,5 +1,5 @@
 from mitmproxy.net.http.http1 import assemble
-from sqlalchemy import Column, Integer, String, JSON, ForeignKey, UniqueConstraint, Boolean
+from sqlalchemy import Column, Integer, String, JSON, ForeignKey, UniqueConstraint, Boolean, Enum
 from sqlalchemy import or_, not_, and_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, RelationshipProperty, Query
@@ -7,8 +7,9 @@ from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.session import Session
 from typing import Dict, Optional, Any, Union, TypeVar, Type, List, Tuple
 from unicornbottle.serializers import Request, Response, ExceptionSerializer, DatabaseWriteItem
-import mitmproxy
+import enum
 import json
+import mitmproxy
 
 RR = TypeVar('RR', bound='RequestResponse')
 Base : Any = declarative_base()
@@ -210,10 +211,12 @@ class RequestResponse(Base):
 
     id = Column(Integer, primary_key=True)
     metadata_id = Column(Integer, ForeignKey('endpoint_metadata.id'), nullable=False, index=True)
+    pwnage_id = Column(Integer, ForeignKey('pwnage.id'), index=True)
+    sent_by_fuzzer = Column(Boolean, default=False, index=True, nullable=False)
+
     pretty_url = Column(String, index=True)
     pretty_host = Column(String, index=True)
     path = Column(String, index=True)
-    sent_by_fuzzer = Column(Boolean, default=False, index=True, nullable=False)
     scheme = Column(String)
     port = Column(Integer)
     method = Column(String)
@@ -282,6 +285,13 @@ class RequestResponse(Base):
 
         return req.toMITM()
 
+class Severity(enum.Enum):
+    INFO = 1
+    LOW = 2
+    MEDIUM = 3
+    HIGH = 4
+    OUTRAGEOUS = 5
+
 class Pwnage(Base):
     """
     This database table stores any and all pwnage.
@@ -291,7 +301,8 @@ class Pwnage(Base):
     id = Column(Integer, primary_key=True)
     request_response_id = Column(Integer, ForeignKey('request_response.id'), nullable=False, index=True)
 
-    name = Column(String, nullable=False)
+    name = Column(String, nullable=False) 
     description = Column(String, nullable=False)
+    severity = Column(Enum(Severity))
 
-    request_responses : RelationshipProperty = relationship("RequestResponse") 
+    fuzz_requests : RelationshipProperty = relationship("RequestResponse", foreign_keys='RequestResponse.pwnage_id') # Requests which demonstrate the bug.
