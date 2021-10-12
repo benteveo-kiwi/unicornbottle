@@ -129,23 +129,28 @@ class DatabaseWriteItem():
     Simple data structure for communication between the `send_request` thread
     and the `thread_postgres` thread.
     """
-    def __init__(self, target_guid:str, request:mitmproxy.net.http.Request,
-            response:Optional[mitmproxy.net.http.Response], exception:Optional[ExceptionSerializer]) -> None:
+    def __init__(self, request:mitmproxy.net.http.Request, response:Optional[mitmproxy.net.http.Response], 
+            exception:Optional[ExceptionSerializer]=None, target_guid:Optional[str]=None) -> None:
         """
         Default constructor.
 
         Args:
-            target_guid: the guid sent in the X-UB-GUID header.
             request: the `Request` associated with this entry.
             response: the response. May be null if an error occurred that
                 prevented the retrieval of the response, such as a timeout.
             exception: the exception associated with this failure. May be None if
                 there were no errors.
+            target_guid: the guid sent in the X-UB-GUID header. If None it will
+                be retrieved from the request headers.
         """
-        self.target_guid = target_guid
         self.request = request
         self.response = response
         self.exception = exception
+
+        if target_guid:
+            self.target_guid = target_guid
+        else:
+            self.target_guid = self.request.headers['X-UB-GUID']
 
 class InvalidFuzzLocation(Exception):
     pass
