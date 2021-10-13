@@ -286,7 +286,7 @@ class RequestResponse(Base):
         return req.toMITM()
 
 class Severity(enum.Enum):
-    INFO = 1
+    GARBAGE = 1
     LOW = 2
     MEDIUM = 3
     HIGH = 4
