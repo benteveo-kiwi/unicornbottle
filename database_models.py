@@ -303,6 +303,6 @@ class Pwnage(Base):
 
     name = Column(String, nullable=False) 
     description = Column(String, nullable=False)
-    severity = Column(Enum(Severity))
+    severity = Column(Enum(Severity), nullable=False)
 
     fuzz_requests : RelationshipProperty = relationship("RequestResponse", foreign_keys='RequestResponse.pwnage_id') # Requests which demonstrate the bug.
