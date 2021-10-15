@@ -1,4 +1,5 @@
 from enum import IntEnum
+from mitmproxy.net.http.http1 import assemble
 from typing import Dict, Optional, Any, Union, TypeVar, Type, List, Tuple
 import base64
 import json
@@ -103,6 +104,17 @@ class Request(MessageSerializer):
         mitmproxy.http.Request object.
         """
         return mitmproxy.net.http.Request(**self.state)
+
+    def toPlain(self) -> str:
+        """
+        Returns the raw data as hopefully would be sent in the wire.
+        """
+        request = self.toMITM()
+
+        request.decode(strict=False)
+        raw_request:bytes = assemble.assemble_request(request) # type: ignore
+
+        return raw_request.decode('utf-8')
 
 class Response(MessageSerializer):
     def toMITM(self) -> mitmproxy.net.http.Response:
@@ -257,6 +269,25 @@ class FuzzLocation():
             request = self.authenticate_request(request)
 
         return request
+
+    def get_base_value(self) -> str:
+        """
+        Returns the value that is present in the parameter being fuzzed.
+        """
+        request = self.get_baseline()
+        if self.param_type == FuzzParamType.PARAM_URL:
+            return request.query[self.param_name]
+        elif self.param_type == FuzzParamType.PARAM_BODY:
+            request.urlencoded_form[self.param_name]
+        elif self.param_type == FuzzParamType.PARAM_MULTIPART:
+            return request.multipart_form[self.param_name.encode('utf-8')]
+        elif self.param_type == FuzzParamType.PARAM_JSON:
+            body_json = json.loads(request.content)
+            return body_json[self.param_name]
+        elif self.param_type == FuzzParamType.HEADER:
+            return request.headers[self.param_name]
+        else:
+            raise Exception("Unhandled FuzzParamType")
 
     def fuzz(self, value:str) -> mitmproxy.net.http.Request:
         """
