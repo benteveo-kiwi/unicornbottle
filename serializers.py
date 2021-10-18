@@ -270,7 +270,7 @@ class FuzzLocation():
 
         return request
 
-    def get_base_value(self) -> str:
+    def get_base_value(self) -> Any:
         """
         Returns the value that is present in the parameter being fuzzed.
         """

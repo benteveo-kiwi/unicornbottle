@@ -292,6 +292,9 @@ class Severity(enum.Enum):
     HIGH = 4
     OUTRAGEOUS = 5
 
+class BugName():
+    INJECTION = "Special character injection."
+
 class Pwnage(Base):
     """
     This database table stores any and all pwnage.

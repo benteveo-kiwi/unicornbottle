@@ -167,12 +167,6 @@ class HTTPProxyClient(object):
 
             for req_res in items_to_write[target_guid]:
 
-                # Avoid polluting EndpointMetadata with fuzzer-generated
-                # garbage. Requests can be created by fuzzer if an issue is
-                # found.
-                if self.is_fuzzer:
-                    continue
-
                 stmt = select(EndpointMetadata).where(and_(EndpointMetadata.pretty_url == req_res.pretty_url, # type:ignore 
                     EndpointMetadata.method == req_res.method))
 
@@ -209,6 +203,13 @@ class HTTPProxyClient(object):
             pass
 
         if items_read > 0:
+
+            # Avoid polluting EndpointMetadata with fuzzer-generated
+            # garbage. Requests can be created by fuzzer if an issue is
+            # found.
+            if self.is_fuzzer:
+                return
+
             logger.debug("Writing %s requests to database." % items_read)
 
             try:
