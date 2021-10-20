@@ -278,7 +278,7 @@ class FuzzLocation():
         if self.param_type == FuzzParamType.PARAM_URL:
             return request.query[self.param_name]
         elif self.param_type == FuzzParamType.PARAM_BODY:
-            request.urlencoded_form[self.param_name]
+            return request.urlencoded_form[self.param_name]
         elif self.param_type == FuzzParamType.PARAM_MULTIPART:
             return request.multipart_form[self.param_name.encode('utf-8')]
         elif self.param_type == FuzzParamType.PARAM_JSON:
