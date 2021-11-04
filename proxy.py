@@ -18,6 +18,7 @@ import traceback
 import uuid
 
 logger = logging.getLogger(__name__)
+LOGIN_SCRIPT = "b179a4aa-5a42-4e04-90b6-f217eb46538b"
 
 class TimeoutException(Exception):
     """
@@ -386,19 +387,21 @@ class HTTPProxyClient(object):
 
             response = self.get_response(corr_id)
         except Exception as e:
-            # Couldn't successfully retrieve a response for this request. Still write to DB.
-            exc_info = ExceptionSerializer(type(e).__name__, str(e), traceback.format_exc())
-            dwr = DatabaseWriteItem(target_guid=target_guid, request=request,
-                    response=None, exception=exc_info)
+            if target_guid != LOGIN_SCRIPT:
+                # Couldn't successfully retrieve a response for this request. Still write to DB.
+                exc_info = ExceptionSerializer(type(e).__name__, str(e), traceback.format_exc())
+                dwr = DatabaseWriteItem(target_guid=target_guid, request=request,
+                        response=None, exception=exc_info)
 
-            self.db_write_queue.put(dwr)
+                self.db_write_queue.put(dwr)
 
             raise
         else:
-            dwr = DatabaseWriteItem(target_guid=target_guid, request=request,
-                    response=response, exception=None)
+            if target_guid != LOGIN_SCRIPT:
+                dwr = DatabaseWriteItem(target_guid=target_guid, request=request,
+                        response=response, exception=None)
 
-            self.db_write_queue.put(dwr)
+                self.db_write_queue.put(dwr)
 
         return response
 
