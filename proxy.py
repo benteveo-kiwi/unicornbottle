@@ -37,6 +37,13 @@ class UnauthorizedException(Exception):
     """
     pass
 
+class UnableToProxyException(Exception):
+    """
+    Raised when the response was not abled to be proxied, due to for example
+    the host being unreachable.
+    """
+    pass
+
 class HTTPProxyClient(object):
     """
     This function implements the RPC model in a thread-safe way.
@@ -336,6 +343,18 @@ class HTTPProxyClient(object):
             raise exc
 
         return str(target_guid)
+
+    def send(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None) -> mitmproxy.net.http.Response:
+        """
+        Wrapper for send_request that raises an exception when the proxy is
+        unable to reach it's destination.
+        """
+
+        resp = self.send_request(request, corr_id)
+        if resp.status_code == 418: # we claim this status code as nobody could reasonably be using it in prod.
+            raise UnableToProxyException("Could not proxy request. Response: %s" % resp.text)
+        else:
+            return resp
 
     def send_request(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None) -> mitmproxy.net.http.Response:
         """
