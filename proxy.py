@@ -18,10 +18,24 @@ import traceback
 import uuid
 
 logger = logging.getLogger(__name__)
+LOGIN_SCRIPT = "b179a4aa-5a42-4e04-90b6-f217eb46538b"
 
-class TimeoutException(Exception):
+class RetriableException(Exception):
+    """
+    Exceptions which will trigger a retry on `send()`
+    """
+    pass
+
+class TimeoutException(RetriableException):
     """
     The RPC client has exceeded PROCESS_TIME_LIMIT while retrieving a response.
+    """
+    pass
+
+class UnableToProxyException(RetriableException):
+    """
+    Raised when the response was not abled to be proxied, due to for example
+    the host being unreachable or such other nonsense.
     """
     pass
 
@@ -43,7 +57,7 @@ class HTTPProxyClient(object):
     """
 
     # Maximum time that we will wait for a `send_request` call.
-    PROCESS_TIME_LIMIT = 15
+    PROCESS_TIME_LIMIT = 30
 
     # Maximum amount of items that will be fetched from the queue prior to
     # writing.
@@ -337,6 +351,30 @@ class HTTPProxyClient(object):
 
         return str(target_guid)
 
+    def send(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None, retries_left:int=3) -> mitmproxy.net.http.Response:
+        """
+        Wrapper for send_request that raises an exception when the proxy is
+        unable to reach it's destination.
+
+        Args:
+            See send_request.
+
+            retries_left:
+        """
+        
+        if retries_left == 0:
+            raise UnableToProxyException("Could not send request")
+
+        try:
+            resp = self.send_request(request, corr_id)
+            if resp.status_code == 418: # we claim this status code as nobody could reasonably be using it in prod.
+                raise UnableToProxyException("Could not proxy request. Response: %s" % resp.text)
+            else:
+                return resp
+        except RetriableException:
+            logger.debug("Going to retry, got exception when sending request.")
+            return self.send(request, corr_id, retries_left-1)
+
     def send_request(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None) -> mitmproxy.net.http.Response:
         """
         Serialize and send the request to RabbitMQ, receive the response and
@@ -386,19 +424,21 @@ class HTTPProxyClient(object):
 
             response = self.get_response(corr_id)
         except Exception as e:
-            # Couldn't successfully retrieve a response for this request. Still write to DB.
-            exc_info = ExceptionSerializer(type(e).__name__, str(e), traceback.format_exc())
-            dwr = DatabaseWriteItem(target_guid=target_guid, request=request,
-                    response=None, exception=exc_info)
+            if target_guid != LOGIN_SCRIPT:
+                # Couldn't successfully retrieve a response for this request. Still write to DB.
+                exc_info = ExceptionSerializer(type(e).__name__, str(e), traceback.format_exc())
+                dwr = DatabaseWriteItem(target_guid=target_guid, request=request,
+                        response=None, exception=exc_info)
 
-            self.db_write_queue.put(dwr)
+                self.db_write_queue.put(dwr)
 
             raise
         else:
-            dwr = DatabaseWriteItem(target_guid=target_guid, request=request,
-                    response=response, exception=None)
+            if target_guid != LOGIN_SCRIPT:
+                dwr = DatabaseWriteItem(target_guid=target_guid, request=request,
+                        response=response, exception=None)
 
-            self.db_write_queue.put(dwr)
+                self.db_write_queue.put(dwr)
 
         return response
 
