@@ -18,7 +18,7 @@ import traceback
 import uuid
 
 logger = logging.getLogger(__name__)
-LOGIN_SCRIPT = "b179a4aa-5a42-4e04-90b6-f217eb46538b"
+SKIP_DB_WRITE = "b179a4aa-5a42-4e04-90b6-f217eb46538b"
 
 class TimeoutException(Exception):
     """
@@ -218,6 +218,15 @@ class HTTPProxyClient(object):
             except exc.SQLAlchemyError:
                 logger.exception("Unhandled SQL error while writing to DB:")
 
+                # Sometimes queries fail, and leave the transaction in a broken
+                # state. They need to be rolled back otherwise PostgreSQL very
+                # wisely decides to not play anymore.
+                # 
+                # In our case, these errors happen mostly during tests. They're
+                # still logged though.
+                for conn in self.db_connections:
+                    self.db_connections[conn].rolback()
+
     def thread_postgres(self) -> None:
         """
         Main thread for connections to PostgreSQL and regular insertion of
@@ -332,9 +341,9 @@ class HTTPProxyClient(object):
         try:
             target_guid = request.headers['X-UB-GUID']
             if not self.target_guid_valid(target_guid):
-                raise exc
+                target_guid = SKIP_DB_WRITE
         except KeyError:
-            raise exc
+            target_guid = SKIP_DB_WRITE
 
         return str(target_guid)
 
@@ -387,7 +396,7 @@ class HTTPProxyClient(object):
 
             response = self.get_response(corr_id)
         except Exception as e:
-            if target_guid != LOGIN_SCRIPT:
+            if target_guid != SKIP_DB_WRITE:
                 # Couldn't successfully retrieve a response for this request. Still write to DB.
                 exc_info = ExceptionSerializer(type(e).__name__, str(e), traceback.format_exc())
                 dwr = DatabaseWriteItem(target_guid=target_guid, request=request,
@@ -397,7 +406,7 @@ class HTTPProxyClient(object):
 
             raise
         else:
-            if target_guid != LOGIN_SCRIPT:
+            if target_guid != SKIP_DB_WRITE:
                 dwr = DatabaseWriteItem(target_guid=target_guid, request=request,
                         response=response, exception=None)
 
