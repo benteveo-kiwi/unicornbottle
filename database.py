@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm.session import Session
+from sqlalchemy.orm import Session
+# from sqlalchemy.orm.session import Session
 from typing import Dict, Optional, Any, Union, TypeVar, Type
 from unicornbottle.environment import read_configuration_file
 from unicornbottle.models import Base
@@ -45,7 +46,10 @@ def database_connect(schema : str, create:bool=False) -> Session:
             already exists.
 
     Returns:
-        session: the SQL alchemy session.
+        session: the SQL alchemy session. Ultra mega warning! This object needs to be called within a `with` block.
+            e.g. with database_connect(*args) as db:
+
+        If you don't do that you'll leak database connections and it's going to be a bummer.
     """
 
     # Instruct the engine to use the schema for all queries.
