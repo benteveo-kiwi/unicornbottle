@@ -85,7 +85,6 @@ class HTTPProxyClient(object):
         self.responses : Dict[str, bytes] = {}
         
         self.db_write_queue : queue.SimpleQueue = queue.SimpleQueue()
-        self.db_connections : dict[str, Session] = {}
         self.is_fuzzer = is_fuzzer
 
     def threads_start(self) -> None:
@@ -168,35 +167,31 @@ class HTTPProxyClient(object):
                 grouped by target_guids.
         """
         for target_guid in items_to_write:
-            if target_guid not in self.db_connections:
-                try:
-                    self.db_connections[target_guid] = database_connect(target_guid, create=False)
-                except InvalidSchemaException:
-                    logger.error("Invalid schema %s in header." % target_guid)
-                    continue
+            try:
+                with database_connect(target_guid, create=False) as conn:
+                    logger.debug("Adding %s items for schema %s" % (len(items_to_write[target_guid]), target_guid))
 
-            logger.debug("Adding %s items for schema %s" % (len(items_to_write[target_guid]), target_guid))
+                    for req_res in items_to_write[target_guid]:
 
-            conn = self.db_connections[target_guid]
+                        stmt = select(EndpointMetadata).where(and_(EndpointMetadata.pretty_url == req_res.pretty_url, # type:ignore 
+                            EndpointMetadata.method == req_res.method))
 
-            for req_res in items_to_write[target_guid]:
+                        em = conn.execute(stmt).scalar()
 
-                stmt = select(EndpointMetadata).where(and_(EndpointMetadata.pretty_url == req_res.pretty_url, # type:ignore 
-                    EndpointMetadata.method == req_res.method))
+                        if em is None:
+                            em = EndpointMetadata(pretty_url=req_res.pretty_url, method=req_res.method)
+                            conn.add(em)
+                            conn.commit()
 
-                em = conn.execute(stmt).scalar()
+                        req_res.metadata_id = em.id
+                        req_res.sent_by_fuzzer = self.is_fuzzer
 
-                if em is None:
-                    em = EndpointMetadata(pretty_url=req_res.pretty_url, method=req_res.method)
-                    conn.add(em)
+                        conn.add(req_res)
+
                     conn.commit()
-
-                req_res.metadata_id = em.id
-                req_res.sent_by_fuzzer = self.is_fuzzer
-
-                conn.add(req_res)
-
-            conn.commit()
+            except InvalidSchemaException:
+                logger.error("Invalid schema %s in header." % target_guid)
+                continue
 
     def thread_postgres_read_queue(self) -> None:
         """
@@ -231,15 +226,6 @@ class HTTPProxyClient(object):
             except exc.SQLAlchemyError:
                 logger.exception("Unhandled SQL error while writing to DB:")
 
-                # Sometimes queries fail, and leave the transaction in a broken
-                # state. They need to be rolled back otherwise PostgreSQL very
-                # wisely decides to not play anymore.
-                # 
-                # In our case, these errors happen mostly during tests. They're
-                # still logged though.
-                for conn in self.db_connections:
-                    self.db_connections[conn].rolback()
-
     def thread_postgres(self) -> None:
         """
         Main thread for connections to PostgreSQL and regular insertion of
@@ -268,10 +254,6 @@ class HTTPProxyClient(object):
             raise
         finally:
             logger.error("PostgreSQL thread is shutting down. See log for details.")
-            for conn in self.db_connections:
-                self.db_connections[conn].close()
-
-            self.db_connections = {}
 
     def thread_rabbit(self) -> None:
         """
