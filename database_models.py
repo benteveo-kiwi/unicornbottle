@@ -226,12 +226,13 @@ class RequestResponse(Base):
     response = Column(JSON)
 
     @classmethod
-    def createFromDWI(cls, dwi:DatabaseWriteItem) -> RR:
+    def createFromDWI(cls, dwi:DatabaseWriteItem, metadata_id:Optional[int]=None) -> RR:
         """
         Helper method for creating a `RequestResponse` object from a `models.DatabaseWriteItem`
 
         Args:
             dwi: Input `DatabaseWriteItem`.
+            metadata_id: the EndpointMetadata.id to associate with the created RequestResponse.
         """
         exc = None
         if dwi.exception is not None:
@@ -244,15 +245,13 @@ class RequestResponse(Base):
             resp_status_code=dwi.response.status_code
 
         req = Request(dwi.request.get_state()).toJSON()
-            
-        return cls(pretty_url=dwi.request.pretty_url,
+
+        return cls(metadata_id=metadata_id, pretty_url=dwi.request.pretty_url,
                 pretty_host=dwi.request.pretty_host, path=dwi.request.path,
                 scheme=dwi.request.scheme, port=dwi.request.port,
                 method=dwi.request.method,
-                response_status_code=resp_status_code,
-                exception=exc,
-                request=req,
-                response=resp)
+                response_status_code=resp_status_code, exception=exc,
+                request=req, response=resp)
 
     def to_plain(self) -> str:
         """
