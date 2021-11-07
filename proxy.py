@@ -18,7 +18,7 @@ import traceback
 import uuid
 
 logger = logging.getLogger(__name__)
-LOGIN_SCRIPT = "b179a4aa-5a42-4e04-90b6-f217eb46538b"
+SKIP_DB_WRITE = "b179a4aa-5a42-4e04-90b6-f217eb46538b"
 
 class RetriableException(Exception):
     """
@@ -85,7 +85,6 @@ class HTTPProxyClient(object):
         self.responses : Dict[str, bytes] = {}
         
         self.db_write_queue : queue.SimpleQueue = queue.SimpleQueue()
-        self.db_connections : dict[str, Session] = {}
         self.is_fuzzer = is_fuzzer
 
     def threads_start(self) -> None:
@@ -168,35 +167,31 @@ class HTTPProxyClient(object):
                 grouped by target_guids.
         """
         for target_guid in items_to_write:
-            if target_guid not in self.db_connections:
-                try:
-                    self.db_connections[target_guid] = database_connect(target_guid, create=False)
-                except InvalidSchemaException:
-                    logger.error("Invalid schema %s in header." % target_guid)
-                    continue
+            try:
+                with database_connect(target_guid, create=False) as conn:
+                    logger.debug("Adding %s items for schema %s" % (len(items_to_write[target_guid]), target_guid))
 
-            logger.debug("Adding %s items for schema %s" % (len(items_to_write[target_guid]), target_guid))
+                    for req_res in items_to_write[target_guid]:
 
-            conn = self.db_connections[target_guid]
+                        stmt = select(EndpointMetadata).where(and_(EndpointMetadata.pretty_url == req_res.pretty_url, # type:ignore 
+                            EndpointMetadata.method == req_res.method))
 
-            for req_res in items_to_write[target_guid]:
+                        em = conn.execute(stmt).scalar()
 
-                stmt = select(EndpointMetadata).where(and_(EndpointMetadata.pretty_url == req_res.pretty_url, # type:ignore 
-                    EndpointMetadata.method == req_res.method))
+                        if em is None:
+                            em = EndpointMetadata(pretty_url=req_res.pretty_url, method=req_res.method)
+                            conn.add(em)
+                            conn.commit()
 
-                em = conn.execute(stmt).scalar()
+                        req_res.metadata_id = em.id
+                        req_res.sent_by_fuzzer = self.is_fuzzer
 
-                if em is None:
-                    em = EndpointMetadata(pretty_url=req_res.pretty_url, method=req_res.method)
-                    conn.add(em)
+                        conn.add(req_res)
+
                     conn.commit()
-
-                req_res.metadata_id = em.id
-                req_res.sent_by_fuzzer = self.is_fuzzer
-
-                conn.add(req_res)
-
-            conn.commit()
+            except InvalidSchemaException:
+                logger.error("Invalid schema %s in header." % target_guid)
+                continue
 
     def thread_postgres_read_queue(self) -> None:
         """
@@ -259,10 +254,6 @@ class HTTPProxyClient(object):
             raise
         finally:
             logger.error("PostgreSQL thread is shutting down. See log for details.")
-            for conn in self.db_connections:
-                self.db_connections[conn].close()
-
-            self.db_connections = {}
 
     def thread_rabbit(self) -> None:
         """
@@ -345,9 +336,9 @@ class HTTPProxyClient(object):
         try:
             target_guid = request.headers['X-UB-GUID']
             if not self.target_guid_valid(target_guid):
-                raise exc
+                target_guid = SKIP_DB_WRITE
         except KeyError:
-            raise exc
+            target_guid = SKIP_DB_WRITE
 
         return str(target_guid)
 
@@ -424,7 +415,7 @@ class HTTPProxyClient(object):
 
             response = self.get_response(corr_id)
         except Exception as e:
-            if target_guid != LOGIN_SCRIPT:
+            if target_guid != SKIP_DB_WRITE:
                 # Couldn't successfully retrieve a response for this request. Still write to DB.
                 exc_info = ExceptionSerializer(type(e).__name__, str(e), traceback.format_exc())
                 dwr = DatabaseWriteItem(target_guid=target_guid, request=request,
@@ -434,7 +425,7 @@ class HTTPProxyClient(object):
 
             raise
         else:
-            if target_guid != LOGIN_SCRIPT:
+            if target_guid != SKIP_DB_WRITE:
                 dwr = DatabaseWriteItem(target_guid=target_guid, request=request,
                         response=response, exception=None)
 
