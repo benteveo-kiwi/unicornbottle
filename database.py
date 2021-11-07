@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine, engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import Session
-# from sqlalchemy.orm.session import Session
 from typing import Dict, Optional, Any, Union, TypeVar, Type
 from unicornbottle.environment import read_configuration_file
 from unicornbottle.models import Base
@@ -29,7 +29,7 @@ def get_url() -> str:
             quote(db['password']), quote(db['hostname']),
             quote(db['database']))
 
-def database_connect(schema : str, create:bool=False) -> Session:
+def database_connect(schema : str, create:bool=False, disable_pooling:bool=False) -> Session:
     """
     Use SQLAlchemy to connect to the database. If the tables or schemas do not
     exist then they will be created.
@@ -38,6 +38,10 @@ def database_connect(schema : str, create:bool=False) -> Session:
         schema: PostgreSQL schema name to use for all queries.
         create: Create tables in this schema if they do not exist. If you pass
             this flag and the schema is already up in the database, it crashes.
+        disable_pooling: whether to disable sqlalchemy connection pooling. I
+            created this flag because the fuzzers tended to pool the connections
+            and create an unordinate, never-dying number of connections which
+            exceeded the default capacity of PostgreSQL during test execution.
 
     Raises:
         InvalidSchemaException: if a non-existent schema is provided and the
@@ -46,8 +50,14 @@ def database_connect(schema : str, create:bool=False) -> Session:
             already exists.
 
     Returns:
-        session: the SQL alchemy session. Ultra mega warning! This object needs to be called within a `with` block.
-            e.g. with database_connect(*args) as db:
+        session: the SQL alchemy session. Ultra mega warning! This object needs
+        to be called within a `with` block. E.g.:
+
+        ```
+        with database_connect(*args) as db:
+            db.add_all([...])
+            db.commit()
+        ```
 
         If you don't do that you'll leak database connections and it's going to be a bummer.
     """
@@ -55,8 +65,13 @@ def database_connect(schema : str, create:bool=False) -> Session:
     # Instruct the engine to use the schema for all queries.
     url = get_url()
 
-    engine = create_engine(url).execution_options(
-            schema_translate_map={None: schema}) # type:ignore
+    if disable_pooling:
+        engine = create_engine(url, poolclass=NullPool)
+    else:
+        engine = create_engine(url)
+
+    engine = engine.execution_options(
+            schema_translate_map={None: schema})
 
     # Create schemas and tables
     has_schema = engine.dialect.has_schema(engine, schema) # type:ignore
