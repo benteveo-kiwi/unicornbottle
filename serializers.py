@@ -186,7 +186,9 @@ class FuzzLocation():
     within it and is used for the generation of modified HTTP requests.
     """
 
-    def __init__(self, target_guid:str, req_resp_id:int, state:dict, param_type:FuzzParamType, param_name:str, login_script:Optional[str]=None):
+    def __init__(self, target_guid:str, req_resp_id:int, em_id:int, state:dict,
+            param_type:FuzzParamType, param_name:str,
+            login_script:Optional[str]=None):
         """
         Main constructor.
 
@@ -194,6 +196,9 @@ class FuzzLocation():
             target_guid: the guid sent in the X-UB-GUID header.
             req_resp_id: the unique id for this request_response object as
                 stored in the database.
+            em_id: endpoint metadata id as associated with this req_resp.
+                Required to prevent unnecessary DB calls in fuzzer and keep
+                that component simple and self-contained.
             state: request state as exported by the
                 mitmproxy.Request.get_state() method.
             param_type: fuzz parameter type. see `FuzzParamType`.
@@ -203,6 +208,7 @@ class FuzzLocation():
         """
         self.target_guid = target_guid
         self.req_resp_id = req_resp_id
+        self.em_id = em_id
         self.base_request_state = state
 
         self.param_type = param_type
@@ -323,7 +329,7 @@ class FuzzLocation():
         return request
 
     @staticmethod
-    def generate(target_guid:str, req_resp_id:int, request:mitmproxy.net.http.Request, login_script:Optional[str]=None) -> List:
+    def generate(target_guid:str, req_resp_id:int, em_id:int, request:mitmproxy.net.http.Request, login_script:Optional[str]=None) -> List:
         """
         Generates fuzz locations based on a request.
 
@@ -331,29 +337,38 @@ class FuzzLocation():
             target_guid: the guid sent in the X-UB-GUID header.
             req_resp_id: the unique id for this request_response object as
                 stored in the database.
+            em_id: endpoint metadata id as associated with this req_resp.
+                Required to prevent unnecessary DB calls in fuzzer and keep
+                that component simple and self-contained.
             request: a mitm http request.
             login_script: the login_scripts for these fl.
 
         Returns: 
             A list of FuzzLocation.
         """
+
+        base_kwargs = {
+            "target_guid": target_guid,
+            "req_resp_id": req_resp_id,
+            "em_id": em_id,
+            "base_request_state": request.get_state(),
+            "login_script": login_script,
+        }
+
         fuzz_locations = []
         for param_type in FuzzParamType:
 
             if param_type == FuzzParamType.PARAM_URL:
                 for param in request.query:
-                    fuzz_locations.append(FuzzLocation(target_guid, req_resp_id,
-                        request.get_state(), FuzzParamType.PARAM_URL, param, login_script))
+                    fuzz_locations.append(FuzzLocation(param_type=FuzzParamType.PARAM_URL, param_name=param, **base_kwargs))
 
             elif param_type == FuzzParamType.PARAM_BODY:
                 for param in request.urlencoded_form:
-                    fuzz_locations.append(FuzzLocation(target_guid, req_resp_id,
-                        request.get_state(), FuzzParamType.PARAM_BODY, param, login_script))
+                    fuzz_locations.append(FuzzLocation(param_type=FuzzParamType.PARAM_BODY, param_name=param, **base_kwargs))
 
             elif param_type == FuzzParamType.PARAM_MULTIPART:
                 for param in request.multipart_form:
-                    fuzz_locations.append(FuzzLocation(target_guid, req_resp_id,
-                        request.get_state(), FuzzParamType.PARAM_MULTIPART, param, login_script))
+                    fuzz_locations.append(FuzzLocation(param_type=FuzzParamType.PARAM_MULTIPART, param_name=param, **base_kwargs))
 
             elif param_type == FuzzParamType.PARAM_JSON:
                 try:
@@ -362,13 +377,11 @@ class FuzzLocation():
                     continue
 
                 for param in body_json:
-                    fuzz_locations.append(FuzzLocation(target_guid, req_resp_id,
-                        request.get_state(), FuzzParamType.PARAM_JSON, param, login_script))
+                    fuzz_locations.append(FuzzLocation(param_type=FuzzParamType.PARAM_JSON, param_name=param, **base_kwargs))
 
             elif param_type == FuzzParamType.HEADER:
                 for param in request.headers:
-                    fuzz_locations.append(FuzzLocation(target_guid, req_resp_id,
-                        request.get_state(), FuzzParamType.HEADER, param, login_script))
+                    fuzz_locations.append(FuzzLocation(param_type=FuzzParamType.HEADER, param_name=param, **base_kwargs))
 
             else:
                 raise Exception("Unhandled FuzzParamType.")
@@ -384,6 +397,7 @@ class FuzzLocation():
         data = {
             "target_guid": self.target_guid,
             "req_resp_id": self.req_resp_id,
+            "em_id": self.em_id,
             "state": self.base_request_state,
             "param_type": self.param_type,
             "param_name": self.param_name,
@@ -407,4 +421,4 @@ class FuzzLocation():
         except KeyError:
             login_script = None
 
-        return cls(j['target_guid'], j['req_resp_id'], j['state'], FuzzParamType(j['param_type']), j['param_name'], login_script)
+        return cls(j['target_guid'], j['req_resp_id'], j['em_id'], j['state'], FuzzParamType(j['param_type']), j['param_name'], login_script)
