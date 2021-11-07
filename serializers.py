@@ -351,7 +351,7 @@ class FuzzLocation():
             "target_guid": target_guid,
             "req_resp_id": req_resp_id,
             "em_id": em_id,
-            "base_request_state": request.get_state(),
+            "state": request.get_state(),
             "login_script": login_script,
         }
 
