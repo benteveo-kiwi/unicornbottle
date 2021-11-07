@@ -118,7 +118,7 @@ class EndpointMetadata(Base):
             if scope_url.negative:
                 url_filters.append(not_(pretty_url_like))
             else:
-                url_filters.append(pretty_url_like)
+                url_filters.append(pretty_url_like) #type:ignore
 
         # Optional filters based on function parameters.
         if len(url_filters) > 0:

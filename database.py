@@ -59,7 +59,7 @@ def database_connect(schema : str, create:bool=False) -> Session:
             schema_translate_map={None: schema}) # type:ignore
 
     # Create schemas and tables
-    has_schema = engine.dialect.has_schema(engine, schema) 
+    has_schema = engine.dialect.has_schema(engine, schema) # type:ignore
     if has_schema:
         if create:
             raise CantCreateSchemaException("Couldn't create schema %s because it already exists." % schema)
