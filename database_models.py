@@ -63,7 +63,6 @@ class EndpointMetadata(Base):
     pretty_url = Column(String, index=True)
     method = Column(String, index=True)
 
-    fuzz_count = Column(Integer, default=0, nullable=False)
 
     crawl_count = Column(Integer, default=0, nullable=False) # Successful crawl count.
 
@@ -77,6 +76,10 @@ class EndpointMetadata(Base):
     # and should not occur in normal operations. E.g. An error with the
     # login_script may trigger this flag.
     crawl_exception_count = Column(Integer, default=0, nullable=False) 
+
+    fuzz_count = Column(Integer, default=0, nullable=False)
+    fuzz_fail_count = Column(Integer, default=0, nullable=False) 
+    fuzz_exception_count = Column(Integer, default=0, nullable=False) 
 
     request_responses : RelationshipProperty = relationship("RequestResponse") 
 
@@ -198,7 +201,6 @@ class RequestResponse(Base):
     - crawl_count: the number of times we have initiated a crawl from this URL.
       Our crawling strategy is recursive and time-bound so we prioritize
       starting from endpoints we have not yet scanned from where we can.
-    - sent_by_fuzzer: If the request was sent by the fuzzer originally.
 
     Please note that a different schema is used for each "target", in order to
     avoid all requests ever sent through the proxy from being stored in a
@@ -212,7 +214,6 @@ class RequestResponse(Base):
     id = Column(Integer, primary_key=True)
     metadata_id = Column(Integer, ForeignKey('endpoint_metadata.id'), nullable=False, index=True)
     pwnage_id = Column(Integer, ForeignKey('pwnage.id'), index=True)
-    sent_by_fuzzer = Column(Boolean, default=False, index=True, nullable=False)
 
     pretty_url = Column(String, index=True)
     pretty_host = Column(String, index=True)
