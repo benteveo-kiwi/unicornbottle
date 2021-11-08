@@ -184,7 +184,6 @@ class HTTPProxyClient(object):
                             conn.commit()
 
                         req_res.metadata_id = em.id
-                        req_res.sent_by_fuzzer = self.is_fuzzer #type: ignore
 
                         conn.add(req_res)
 
