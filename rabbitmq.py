@@ -1,5 +1,6 @@
-from pika.adapters.blocking_connection import BlockingChannel
+from pika.adapters.blocking_connection import BlockingChannel, BlockingConnection
 from unicornbottle.environment import read_configuration_file
+from typing import Tuple
 import pika
 
 CRAWL_QUEUE = "crawl_tasks"
@@ -30,7 +31,7 @@ def rabbitmq_connect() -> pika.BlockingConnection:
 
     return connection
 
-def get_channel(queue_name:str) -> BlockingChannel:
+def get_channel(queue_name:str) -> Tuple[BlockingConnection, BlockingChannel]:
     """
     Get the RabbitMQ channel for writing. 
 

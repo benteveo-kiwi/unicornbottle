@@ -429,8 +429,17 @@ class Pingback():
     This class serves as a representation of a DNS pingback.
     """
 
-    def __init__(self, dns_name):
-        self.dns_name = dns_name
+    def __init__(self, domain, ip):
+        """
+        Main constructor.
+
+        Args:
+            domain: the full domain name. May contain a trailing dot: "google.com."
+            ip: the IP which trigger this DNS request. Frequently this is the
+                IP of the DNS resolver used by the target or similar.
+        """
+        self.domain = domain
+        self.ip = ip
 
     def toJSON(self):
         return json.dumps(self.__dict__)
