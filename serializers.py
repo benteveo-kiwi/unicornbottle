@@ -423,3 +423,14 @@ class FuzzLocation():
 
         return cls(j['target_guid'], j['req_resp_id'], j['em_id'], j['state'], FuzzParamType(j['param_type']), j['param_name'], login_script)
 
+
+class Pingback():
+    """
+    This class serves as a representation of a DNS pingback.
+    """
+
+    def __init__(self, dns_name):
+        self.dns_name = dns_name
+
+    def toJSON(self):
+        return json.dumps(self.__dict__)
