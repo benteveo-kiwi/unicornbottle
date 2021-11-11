@@ -1,6 +1,7 @@
 from mitmproxy.net.http.http1 import assemble
 from sqlalchemy import Column, Integer, String, JSON, ForeignKey, UniqueConstraint, Boolean, Enum
 from sqlalchemy import or_, not_, and_
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, RelationshipProperty, Query
 from sqlalchemy.orm.exc import NoResultFound
@@ -16,6 +17,17 @@ Base : Any = declarative_base()
 
 class InvalidScopeName(Exception):
     pass
+
+class Target(Base):
+    """
+    This table contains metadata regarding targets.
+    """
+    __tablename__ = "target"
+    __table_args__ = {'schema': 'public'}
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    guid = Column(UUID(), nullable=False, index=True)
 
 class Scope(Base):
     """
@@ -294,6 +306,14 @@ class Severity(enum.Enum):
 
 class BugName():
     INJECTION = "Special character injection."
+    PINGBACK = "Pingback received."
+
+class BugType(enum.IntEnum):
+    UNSPECIFIED = 1
+    XXE = 2
+    SSRF = 3
+    STORED_XSS = 4
+    RCE = 5
 
 class Pwnage(Base):
     """

@@ -443,3 +443,16 @@ class Pingback():
 
     def toJSON(self):
         return json.dumps(self.__dict__)
+
+    @classmethod
+    def fromJSON(cls : Type[MS], json_str : Union[bytes, str]) -> MS:
+        """
+        Creates a Pingback object from a JSON string.
+
+        Raises:
+            json.decoder.JSONDecodeError: if you very rudely give it bad JSON.
+        """
+        j = json.loads(json_str)
+        state = json.loads(json_str, cls=RequestDecoder)
+
+        return cls(state['domain'], state['ip'])
