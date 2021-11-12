@@ -423,3 +423,36 @@ class FuzzLocation():
 
         return cls(j['target_guid'], j['req_resp_id'], j['em_id'], j['state'], FuzzParamType(j['param_type']), j['param_name'], login_script)
 
+
+class Pingback():
+    """
+    This class serves as a representation of a DNS pingback.
+    """
+
+    def __init__(self, domain, ip):
+        """
+        Main constructor.
+
+        Args:
+            domain: the full domain name. May contain a trailing dot: "google.com."
+            ip: the IP which trigger this DNS request. Frequently this is the
+                IP of the DNS resolver used by the target or similar.
+        """
+        self.domain = domain
+        self.ip = ip
+
+    def toJSON(self):
+        return json.dumps(self.__dict__)
+
+    @classmethod
+    def fromJSON(cls : Type[MS], json_str : Union[bytes, str]) -> MS:
+        """
+        Creates a Pingback object from a JSON string.
+
+        Raises:
+            json.decoder.JSONDecodeError: if you very rudely give it bad JSON.
+        """
+        j = json.loads(json_str)
+        state = json.loads(json_str, cls=RequestDecoder)
+
+        return cls(state['domain'], state['ip'])
