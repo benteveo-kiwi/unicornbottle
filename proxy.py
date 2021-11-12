@@ -362,7 +362,7 @@ class HTTPProxyClient(object):
             else:
                 return resp
         except RetriableException:
-            logger.debug("Going to retry, got exception when sending request.", exc_info=True)
+            logger.debug("Going to retry, got exception when sending request.")
             return self.send(request, corr_id, retries_left-1)
 
     def send_request(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None) -> mitmproxy.net.http.Response:

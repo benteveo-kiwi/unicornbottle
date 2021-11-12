@@ -27,7 +27,7 @@ def rabbitmq_connect() -> pika.BlockingConnection:
 
     credentials = pika.PlainCredentials(username, password)
     connection = pika.BlockingConnection(
-            pika.ConnectionParameters(host=hostname, credentials=credentials))
+            pika.ConnectionParameters(host=hostname, credentials=credentials, heartbeat=600))
 
     return connection
 
