@@ -28,7 +28,7 @@ class RetriableException(Exception):
 
 class TimeoutException(RetriableException):
     """
-    The RPC client has exceeded PROCESS_TIME_LIMIT while retrieving a response.
+    The RPC client has exceeded REQUEST_TIMEOUT while retrieving a response.
     """
     pass
 
@@ -57,7 +57,7 @@ class HTTPProxyClient(object):
     """
 
     # Maximum time that we will wait for a `send_request` call.
-    PROCESS_TIME_LIMIT = 30
+    REQUEST_TIMEOUT = 10
 
     # Maximum amount of items that will be fetched from the queue prior to
     # writing.
@@ -362,7 +362,7 @@ class HTTPProxyClient(object):
             else:
                 return resp
         except RetriableException:
-            logger.debug("Going to retry, got exception when sending request.")
+            logger.debug("Going to retry, got exception when sending request.", exc_info=True)
             return self.send(request, corr_id, retries_left-1)
 
     def send_request(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None) -> mitmproxy.net.http.Response:
@@ -388,7 +388,7 @@ class HTTPProxyClient(object):
                 provided, one will be generated.
 
         Raises:
-            TimeoutException: self.PROCESS_TIME_LIMIT exceeded, request timeout.
+            TimeoutException: self.REQUEST_TIMEOUT exceeded, request timeout.
             NotConnectedException: We're currently not connected to AMQ. Will
                 attempt to reconnect so that next `call` is successful.
             UnauthorizedException: Missing or malformed X-UB-GUID header. This
@@ -436,7 +436,7 @@ class HTTPProxyClient(object):
         """
         This function reads from `self.responses[corr_id]` in a BLOCKING
         fashion until either a response is populated by the queue reader or
-        `self.PROCESS_TIME_LIMIT` is exceeded.
+        `self.REQUEST_TIMEOUT` is exceeded.
 
         `self.responses` is populated by `self.on_response()`.
 
@@ -452,7 +452,7 @@ class HTTPProxyClient(object):
                 except KeyError:
                     pass
 
-                timeout = time.time() - start >= self.PROCESS_TIME_LIMIT
+                timeout = time.time() - start >= self.REQUEST_TIMEOUT
 
                 if (not resp and timeout) or self.shutting_down:
                     raise TimeoutException
