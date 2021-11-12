@@ -429,7 +429,7 @@ class Pingback():
     This class serves as a representation of a DNS pingback.
     """
 
-    def __init__(self, domain, ip):
+    def __init__(self, domain:str, ip:str):
         """
         Main constructor.
 
@@ -441,11 +441,11 @@ class Pingback():
         self.domain = domain
         self.ip = ip
 
-    def toJSON(self):
+    def toJSON(self) -> str:
         return json.dumps(self.__dict__)
 
     @classmethod
-    def fromJSON(cls : Type[MS], json_str : Union[bytes, str]) -> MS:
+    def fromJSON(cls : Type[Pingback], json_str : Union[bytes, str]) -> Pingback:
         """
         Creates a Pingback object from a JSON string.
 
