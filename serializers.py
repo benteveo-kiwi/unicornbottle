@@ -11,6 +11,7 @@ import uuid
 
 MS = TypeVar('MS', bound='MessageSerializer')
 FL = TypeVar('FL', bound='FuzzLocation')
+PB = TypeVar('PB', bound='Pingback')
 
 class RequestEncoder(json.JSONEncoder):
     """
@@ -445,7 +446,7 @@ class Pingback():
         return json.dumps(self.__dict__)
 
     @classmethod
-    def fromJSON(cls : Type[Pingback], json_str : Union[bytes, str]) -> Pingback:
+    def fromJSON(cls : Type[PB], json_str : Union[bytes, str]) -> PB:
         """
         Creates a Pingback object from a JSON string.
 
