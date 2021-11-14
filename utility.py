@@ -20,7 +20,7 @@ def get_random_string(length:int) -> str:
     return result_str
 
 @functools.lru_cache()
-def get_pingback_domain():
+def get_pingback_domain() -> str:
     """
     Gets the domain from the config file. I cache it because I want to prevent
     unnecessary file reads in the event pingback URLs need to be repeatedly
@@ -29,7 +29,7 @@ def get_pingback_domain():
     domain = read_configuration_file()['domain']['name']
     return domain
 
-def generate_pingback_url(target_id:int, req_resp_id:int, param_name:str, bug_type:BugType):
+def generate_pingback_url(target_id:int, req_resp_id:int, param_name:str, bug_type:BugType) -> str:
     """
     Generate a URL which, if resolved by a system will trigger our pingback
     listener to note it down.
