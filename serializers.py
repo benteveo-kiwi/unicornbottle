@@ -194,11 +194,12 @@ class FuzzParams():
 
 class FuzzLocation():
     """
-    This class represents a location within a HTTP Request where we will be
-    inserting payloads. 
-    
-    It inherits from Request because the orignal request information is stored
-    within it and is used for the generation of modified HTTP requests.
+    This class is a representation for a location where a fuzzer will insert
+    payloads. It contains all the information needed to perform the fuzz so
+    that the fuzzer does not need to perform database calls.
+
+    Additionally it may contain parameters that will be passed as instructions
+    to the fuzzer so as to configure it.
     """
 
     def __init__(self, target_guid:str, target_id:int, req_resp_id:int,
