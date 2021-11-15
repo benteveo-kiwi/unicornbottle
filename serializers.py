@@ -453,7 +453,8 @@ class FuzzLocation():
         fuzz_params = None
         try:
             fp = j['fuzz_params']
-            fuzz_params = FuzzParams(fp['techniques'])
+            if fp:
+                fuzz_params = FuzzParams(fp['techniques'])
         except KeyError:
             pass
 
