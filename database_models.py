@@ -26,8 +26,18 @@ class Target(Base):
     __table_args__ = {'schema': 'public'}
 
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    guid = Column(UUID(), nullable=False, index=True)
+    name = Column(String, nullable=False, index=True, unique=True)
+    guid = Column(UUID(), nullable=False, index=True, unique=True)
+
+    @staticmethod
+    def get_id_by_guid(db:Session, target_guid:str) -> int:
+        """
+        Gets a target ID given a target GUID.
+
+        Args:
+            target_guid: the guid to perform the search for. It will fail if the query fails to return exactly one row.
+        """
+        return int(db.query(Target.id).filter(Target.guid == target_guid).scalar())
 
 class Scope(Base):
     """

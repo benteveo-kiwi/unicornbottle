@@ -187,14 +187,16 @@ class FuzzLocation():
     within it and is used for the generation of modified HTTP requests.
     """
 
-    def __init__(self, target_guid:str, req_resp_id:int, em_id:int, state:dict,
-            param_type:FuzzParamType, param_name:str,
+    def __init__(self, target_guid:str, target_id:int, req_resp_id:int,
+            em_id:int, state:dict, param_type:FuzzParamType, param_name:str,
             login_script:Optional[str]=None):
         """
         Main constructor.
 
         Args:
             target_guid: the guid sent in the X-UB-GUID header.
+            target_id: the numeric target ID for this target. The reason this
+                is required is the fuzzer needs it for pingback payload generation.
             req_resp_id: the unique id for this request_response object as
                 stored in the database.
             em_id: endpoint metadata id as associated with this req_resp.
@@ -208,6 +210,7 @@ class FuzzLocation():
                 login script is called only once per FuzzLocation.
         """
         self.target_guid = target_guid
+        self.target_id = target_id
         self.req_resp_id = req_resp_id
         self.em_id = em_id
         self.base_request_state = state
@@ -330,12 +333,15 @@ class FuzzLocation():
         return request
 
     @staticmethod
-    def generate(target_guid:str, req_resp_id:int, em_id:int, request:mitmproxy.net.http.Request, login_script:Optional[str]=None) -> List:
+    def generate(target_guid:str, target_id:int, req_resp_id:int, em_id:int,
+            request:mitmproxy.net.http.Request,
+            login_script:Optional[str]=None) -> List:
         """
         Generates fuzz locations based on a request.
 
         Args:
             target_guid: the guid sent in the X-UB-GUID header.
+            target_id: the numeric target ID for this target.
             req_resp_id: the unique id for this request_response object as
                 stored in the database.
             em_id: endpoint metadata id as associated with this req_resp.
@@ -350,6 +356,7 @@ class FuzzLocation():
 
         base_kwargs = {
             "target_guid": target_guid,
+            "target_id": target_id,
             "req_resp_id": req_resp_id,
             "em_id": em_id,
             "state": request.get_state(),
@@ -397,6 +404,7 @@ class FuzzLocation():
         
         data = {
             "target_guid": self.target_guid,
+            "target_id": self.target_id,
             "req_resp_id": self.req_resp_id,
             "em_id": self.em_id,
             "state": self.base_request_state,
@@ -422,7 +430,9 @@ class FuzzLocation():
         except KeyError:
             login_script = None
 
-        return cls(j['target_guid'], j['req_resp_id'], j['em_id'], j['state'], FuzzParamType(j['param_type']), j['param_name'], login_script)
+        return cls(j['target_guid'], j['target_id'], j['req_resp_id'],
+                j['em_id'], j['state'], FuzzParamType(j['param_type']),
+                j['param_name'], login_script)
 
 
 class Pingback():
