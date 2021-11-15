@@ -324,6 +324,7 @@ class BugType(enum.IntEnum):
     SSRF = 3
     STORED_XSS = 4
     RCE = 5
+    XSS = 6
 
 class Pwnage(Base):
     """

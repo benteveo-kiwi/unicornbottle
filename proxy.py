@@ -341,7 +341,7 @@ class HTTPProxyClient(object):
 
         return str(target_guid)
 
-    def send(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None, retries_left:int=3) -> mitmproxy.net.http.Response:
+    def send(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None, attempts_left:int=3) -> mitmproxy.net.http.Response:
         """
         Wrapper for send_request that raises an exception when the proxy is
         unable to reach it's destination.
@@ -349,10 +349,11 @@ class HTTPProxyClient(object):
         Args:
             See send_request.
 
-            retries_left:
+            attempts_left: the number of attempts that are remaining for this
+                request. We generally retry requests a couple of times.
         """
         
-        if retries_left == 0:
+        if attempts_left == 0:
             raise UnableToProxyException("Could not send request")
 
         try:
@@ -363,7 +364,7 @@ class HTTPProxyClient(object):
                 return resp
         except RetriableException:
             logger.debug("Going to retry, got exception when sending request.")
-            return self.send(request, corr_id, retries_left-1)
+            return self.send(request, corr_id, attempts_left-1)
 
     def send_request(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None) -> mitmproxy.net.http.Response:
         """
