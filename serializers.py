@@ -178,6 +178,20 @@ class FuzzParamType(IntEnum):
 class InvalidLoginScript(Exception):
     pass
 
+class FuzzParams():
+    """
+    Fuzzing configuration parameters.
+    """
+
+    def __init__(self, techniques:List[str]):
+        """
+        Main constructor.
+
+        Args:
+            techniques: a list of techniques to use. E.g. ['p1nG3r']. If None all techniques will be used.
+        """
+        self.techniques = techniques
+
 class FuzzLocation():
     """
     This class represents a location within a HTTP Request where we will be
@@ -189,7 +203,7 @@ class FuzzLocation():
 
     def __init__(self, target_guid:str, target_id:int, req_resp_id:int,
             em_id:int, state:dict, param_type:FuzzParamType, param_name:str,
-            login_script:Optional[str]=None):
+            login_script:Optional[str]=None, fuzz_params:Optional[FuzzParams]=None):
         """
         Main constructor.
 
@@ -208,6 +222,8 @@ class FuzzLocation():
             param_name: parameter name.
             login_script: login script if required to fuzz this endpoint. The
                 login script is called only once per FuzzLocation.
+            fuzz_params: an instance of FuzzParams. Used for sending
+                configuration to the fuzzer.
         """
         self.target_guid = target_guid
         self.target_id = target_id
@@ -218,6 +234,7 @@ class FuzzLocation():
         self.param_type = param_type
         self.param_name = param_name
         self.login_script = login_script
+        self.fuzz_params = fuzz_params
 
         self.login_data:Optional[dict] = None
         self.tmp_filename = "/tmp/%s.temp" % uuid.uuid4()
@@ -335,7 +352,7 @@ class FuzzLocation():
     @staticmethod
     def generate(target_guid:str, target_id:int, req_resp_id:int, em_id:int,
             request:mitmproxy.net.http.Request,
-            login_script:Optional[str]=None) -> List:
+            login_script:Optional[str]=None, fuzz_params:Optional[FuzzParams]=None) -> List:
         """
         Generates fuzz locations based on a request.
 
@@ -361,6 +378,7 @@ class FuzzLocation():
             "em_id": em_id,
             "state": request.get_state(),
             "login_script": login_script,
+            "fuzz_params": fuzz_params,
         }
 
         fuzz_locations = []
@@ -410,7 +428,8 @@ class FuzzLocation():
             "state": self.base_request_state,
             "param_type": self.param_type,
             "param_name": self.param_name,
-            "login_script": self.login_script
+            "login_script": self.login_script,
+            "fuzz_params": self.fuzz_params.__dict__
         }
         return json.dumps(data, cls=RequestEncoder)
 
@@ -430,9 +449,14 @@ class FuzzLocation():
         except KeyError:
             login_script = None
 
+        try:
+            fuzz_params = j['fuzz_params']
+        except KeyError:
+            fuzz_params = None
+
         return cls(j['target_guid'], j['target_id'], j['req_resp_id'],
                 j['em_id'], j['state'], FuzzParamType(j['param_type']),
-                j['param_name'], login_script)
+                j['param_name'], login_script, fuzz_params)
 
 
 class Pingback():
