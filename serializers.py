@@ -430,7 +430,7 @@ class FuzzLocation():
             "param_type": self.param_type,
             "param_name": self.param_name,
             "login_script": self.login_script,
-            "fuzz_params": self.fuzz_params.__dict__
+            "fuzz_params": self.fuzz_params.__dict__ if self.fuzz_params else None
         }
         return json.dumps(data, cls=RequestEncoder)
 

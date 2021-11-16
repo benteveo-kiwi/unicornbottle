@@ -1,5 +1,6 @@
 from mitmproxy.net.http.http1 import assemble
 from sqlalchemy import Column, Integer, String, JSON, ForeignKey, UniqueConstraint, Boolean, Enum
+from functools import total_ordering
 from sqlalchemy import or_, not_, and_
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
@@ -307,12 +308,20 @@ class RequestResponse(Base):
 
         return req.toMITM()
 
+# See: https://stackoverflow.com/questions/39268052/how-to-compare-enums-in-python/39268706
+@total_ordering
 class Severity(enum.Enum):
     GARBAGE = 1
     LOW = 2
     MEDIUM = 3
     HIGH = 4
     OUTRAGEOUS = 5
+
+    def __lt__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value < other.value
+
+        return NotImplemented
 
 class BugName():
     INJECTION = "Special character injection."
@@ -326,6 +335,26 @@ class BugType(enum.IntEnum):
     RCE = 5
     XSS = 6
 
+    def determine_severity(self):
+        """
+        The severity of each bug does not exist on its own, but is rather a
+        reflection of our own mind. Were we to be more enligthened, we would
+        dispose of all notions of vulnerability in our mind and take all bugs
+        as they are in their own glory, rather than attempting to see them
+        through a lens of severity.
+
+        Returns:
+            Severity: the severity of this bug.
+        """
+
+        if self.value in [BugType.XXE, BugType.SSRF, BugType.XSS, BugType.STORED_XSS]:
+            return Severity.MEDIUM
+        elif self.value == BugType.RCE:
+            return Severity.OUTRAGEOUS
+        else:
+            return Severity.GARBAGE
+
+
 class Pwnage(Base):
     """
     This database table stores any and all pwnage.
@@ -334,6 +363,7 @@ class Pwnage(Base):
 
     id = Column(Integer, primary_key=True)
     request_response_id = Column(Integer, ForeignKey('request_response.id'), nullable=False, index=True)
+    param_name = Column(String) 
 
     name = Column(String, nullable=False) 
     description = Column(String, nullable=False)
