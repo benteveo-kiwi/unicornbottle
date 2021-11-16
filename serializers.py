@@ -441,7 +441,7 @@ class FuzzLocation():
 
         Raises:
             json.decoder.JSONDecodeError: if you give it bad JSON, which would
-                be _rude_.
+                be _rude_, but not entirely unexpected.
         """
         j = json.loads(json_str, cls=RequestDecoder)
         
@@ -450,10 +450,13 @@ class FuzzLocation():
         except KeyError:
             login_script = None
 
+        fuzz_params = None
         try:
-            fuzz_params = j['fuzz_params']
+            fp = j['fuzz_params']
+            if fp:
+                fuzz_params = FuzzParams(fp['techniques'])
         except KeyError:
-            fuzz_params = None
+            pass
 
         return cls(j['target_guid'], j['target_id'], j['req_resp_id'],
                 j['em_id'], j['state'], FuzzParamType(j['param_type']),
