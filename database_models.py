@@ -318,7 +318,7 @@ class Severity(enum.Enum):
     HIGH = 4
     OUTRAGEOUS = 5
 
-    def __lt__(self, other:SE) -> bool:
+    def __lt__(self, other:SE) -> Any:
         if self.__class__ is other.__class__:
             return self.value < other.value
 
