@@ -28,7 +28,7 @@ class RetriableException(Exception):
 
 class TimeoutException(RetriableException):
     """
-    The RPC client has exceeded REQUEST_TIMEOUT while retrieving a response.
+    The RPC client has exceeded request_timeout while retrieving a response.
     """
     pass
 
@@ -57,7 +57,8 @@ class HTTPProxyClient(object):
     """
 
     # Maximum time that we will wait for a `send_request` call.
-    REQUEST_TIMEOUT = 10
+    # This is sometimes modified by the fuzzer to be a lower value.
+    request_timeout = 10
 
     # Maximum amount of items that will be fetched from the queue prior to
     # writing.
@@ -389,7 +390,7 @@ class HTTPProxyClient(object):
                 provided, one will be generated.
 
         Raises:
-            TimeoutException: self.REQUEST_TIMEOUT exceeded, request timeout.
+            TimeoutException: self.request_timeout exceeded, request timeout.
             NotConnectedException: We're currently not connected to AMQ. Will
                 attempt to reconnect so that next `call` is successful.
             UnauthorizedException: Missing or malformed X-UB-GUID header. This
@@ -437,7 +438,7 @@ class HTTPProxyClient(object):
         """
         This function reads from `self.responses[corr_id]` in a BLOCKING
         fashion until either a response is populated by the queue reader or
-        `self.REQUEST_TIMEOUT` is exceeded.
+        `self.request_timeout` is exceeded.
 
         `self.responses` is populated by `self.on_response()`.
 
@@ -453,7 +454,7 @@ class HTTPProxyClient(object):
                 except KeyError:
                     pass
 
-                timeout = time.time() - start >= self.REQUEST_TIMEOUT
+                timeout = time.time() - start >= self.request_timeout
 
                 if (not resp and timeout) or self.shutting_down:
                     raise TimeoutException
