@@ -14,6 +14,7 @@ import json
 import mitmproxy
 
 RR = TypeVar('RR', bound='RequestResponse')
+SE = TypeVar('SE', bound='Severity')
 Base : Any = declarative_base()
 
 class InvalidScopeName(Exception):
@@ -317,7 +318,7 @@ class Severity(enum.Enum):
     HIGH = 4
     OUTRAGEOUS = 5
 
-    def __lt__(self, other:Severity) -> bool:
+    def __lt__(self, other:SE) -> bool:
         if self.__class__ is other.__class__:
             return self.value < other.value
 
