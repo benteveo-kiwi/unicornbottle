@@ -183,14 +183,16 @@ class FuzzParams():
     Fuzzing configuration parameters.
     """
 
-    def __init__(self, techniques:List[str]):
+    def __init__(self, techniques:Optional[List[str]]=None, req_timeout:Optional[int]=None):
         """
         Main constructor.
 
         Args:
             techniques: a list of techniques to use. E.g. ['p1nG3r']. If None all techniques will be used.
+            req_timeout: what request timeout to use for this fuzzing session. 
         """
         self.techniques = techniques
+        self.req_timeout = req_timeout
 
 class FuzzLocation():
     """
@@ -451,12 +453,9 @@ class FuzzLocation():
             login_script = None
 
         fuzz_params = None
-        try:
-            fp = j['fuzz_params']
-            if fp:
-                fuzz_params = FuzzParams(fp['techniques'])
-        except KeyError:
-            pass
+        fp = j.get('fuzz_params')
+        if fp:
+            fuzz_params = FuzzParams(fp.get('techniques'), fp.get('req_timeout'))
 
         return cls(j['target_guid'], j['target_id'], j['req_resp_id'],
                 j['em_id'], j['state'], FuzzParamType(j['param_type']),

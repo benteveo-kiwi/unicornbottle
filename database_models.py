@@ -317,7 +317,7 @@ class Severity(enum.Enum):
     HIGH = 4
     OUTRAGEOUS = 5
 
-    def __lt__(self, other):
+    def __lt__(self, other:Severity) -> bool:
         if self.__class__ is other.__class__:
             return self.value < other.value
 
@@ -335,7 +335,7 @@ class BugType(enum.IntEnum):
     RCE = 5
     XSS = 6
 
-    def determine_severity(self):
+    def determine_severity(self) -> Severity:
         """
         The severity of each bug does not exist on its own, but is rather a
         reflection of our own mind. Were we to be more enligthened, we would
