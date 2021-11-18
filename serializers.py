@@ -451,10 +451,11 @@ class FuzzLocation():
             login_script = j['login_script']
         except KeyError:
             login_script = None
+        del j['login_script']
 
-        fuzz_params = None
         fp = j.get('fuzz_params')
         fuzz_params = FuzzParams(fp.get('techniques'), fp.get('req_timeout'))
+        del j['fuzz_params']
 
         return cls(**j, fuzz_params=fuzz_params, login_script=login_script)
 

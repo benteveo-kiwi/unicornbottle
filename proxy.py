@@ -415,7 +415,7 @@ class HTTPProxyClient(object):
                 body=message_body)
             self.rabbit_connection.add_callback_threadsafe(basic_pub)
 
-            response = self.get_response(corr_id, timeout=timeout)
+            response = self.get_response(corr_id, request_timeout=timeout)
         except Exception as e:
             if target_guid != SKIP_DB_WRITE:
                 # Couldn't successfully retrieve a response for this request. Still write to DB.
@@ -435,7 +435,7 @@ class HTTPProxyClient(object):
 
         return response
 
-    def get_response(self, corr_id:str, timeout:Optional[int]) -> mitmproxy.net.http.Response:
+    def get_response(self, corr_id:str, request_timeout:Optional[int]) -> mitmproxy.net.http.Response:
         """
         This function reads from `self.responses[corr_id]` in a BLOCKING
         fashion until either a response is populated by the queue reader or
@@ -445,10 +445,11 @@ class HTTPProxyClient(object):
 
         Args:
             corr_id: The correlation ID for this request.
+            request_timeout: how much to wait before raising TimeoutException. If None self.REQUEST_TIMEOUT is used.
         """
 
-        if not timeout:
-            timeout = self.REQUEST_TIMEOUT
+        if not request_timeout:
+            request_timeout = self.REQUEST_TIMEOUT
 
         start = time.time()
         try:
@@ -459,10 +460,11 @@ class HTTPProxyClient(object):
                 except KeyError:
                     pass
 
-                timeout = time.time() - start >= timeout
+                timeout_exceeded = time.time() - start >= request_timeout
 
-                if (not resp and timeout) or self.shutting_down:
-                    raise TimeoutException
+                if (not resp and timeout_exceeded) or self.shutting_down:
+                    raise TimeoutException("Timeout exceeded after %ss or shutting down" 
+                            % request_timeout)
                 elif resp:
                     return Response.fromJSON(self.responses[corr_id]).toMITM()
 
