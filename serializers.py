@@ -206,7 +206,7 @@ class FuzzLocation():
 
     def __init__(self, target_guid:str, target_id:int, req_resp_id:int,
             em_id:int, state:dict, param_type:FuzzParamType, param_name:str,
-            login_script:Optional[str]=None, fuzz_params:Optional[FuzzParams]=None):
+            fuzz_params:FuzzParams, login_script:Optional[str]=None):
         """
         Main constructor.
 
@@ -354,8 +354,8 @@ class FuzzLocation():
 
     @staticmethod
     def generate(target_guid:str, target_id:int, req_resp_id:int, em_id:int,
-            request:mitmproxy.net.http.Request,
-            login_script:Optional[str]=None, fuzz_params:Optional[FuzzParams]=None) -> List:
+            request:mitmproxy.net.http.Request, fuzz_params:FuzzParams,
+            login_script:Optional[str]=None) -> List:
         """
         Generates fuzz locations based on a request.
 
@@ -432,7 +432,7 @@ class FuzzLocation():
             "param_type": self.param_type,
             "param_name": self.param_name,
             "login_script": self.login_script,
-            "fuzz_params": self.fuzz_params.__dict__ if self.fuzz_params else None
+            "fuzz_params": self.fuzz_params.__dict__
         }
         return json.dumps(data, cls=RequestEncoder)
 
@@ -454,13 +454,9 @@ class FuzzLocation():
 
         fuzz_params = None
         fp = j.get('fuzz_params')
-        if fp:
-            fuzz_params = FuzzParams(fp.get('techniques'), fp.get('req_timeout'))
+        fuzz_params = FuzzParams(fp.get('techniques'), fp.get('req_timeout'))
 
-        return cls(j['target_guid'], j['target_id'], j['req_resp_id'],
-                j['em_id'], j['state'], FuzzParamType(j['param_type']),
-                j['param_name'], login_script, fuzz_params)
-
+        return cls(**j, fuzz_params=fuzz_params, login_script=login_script)
 
 class Pingback():
     """

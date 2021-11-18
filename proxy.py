@@ -22,13 +22,13 @@ SKIP_DB_WRITE = "b179a4aa-5a42-4e04-90b6-f217eb46538b"
 
 class RetriableException(Exception):
     """
-    Exceptions which will trigger a retry on `send()`
+    Exceptions which will trigger a retry on `send_retry()`
     """
     pass
 
 class TimeoutException(RetriableException):
     """
-    The RPC client has exceeded request_timeout while retrieving a response.
+    The RPC client has exceeded REQUEST_TIMEOUT while retrieving a response.
     """
     pass
 
@@ -57,8 +57,7 @@ class HTTPProxyClient(object):
     """
 
     # Maximum time that we will wait for a `send_request` call.
-    # This is sometimes modified by the fuzzer to be a lower value.
-    request_timeout = 10
+    REQUEST_TIMEOUT = 10
 
     # Maximum amount of items that will be fetched from the queue prior to
     # writing.
@@ -342,10 +341,9 @@ class HTTPProxyClient(object):
 
         return str(target_guid)
 
-    def send(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None, attempts_left:int=3) -> mitmproxy.net.http.Response:
+    def send_retry(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None, attempts_left:int=3, timeout:Optional[int]=None) -> mitmproxy.net.http.Response:
         """
-        Wrapper for send_request that raises an exception when the proxy is
-        unable to reach it's destination.
+        Wrapper for send_request that retries.
 
         Args:
             See send_request.
@@ -358,16 +356,17 @@ class HTTPProxyClient(object):
             raise UnableToProxyException("Could not send request")
 
         try:
-            resp = self.send_request(request, corr_id)
+            resp = self.send_request(request, corr_id, timeout=timeout)
             if resp.status_code == 418: # we claim this status code as nobody could reasonably be using it in prod.
                 raise UnableToProxyException("Could not proxy request. Response: %s" % resp.text)
             else:
                 return resp
         except RetriableException:
             logger.debug("Going to retry, got exception when sending request.")
-            return self.send(request, corr_id, attempts_left-1)
+            return self.send_retry(request=request, corr_id=corr_id,
+                    attempts_left=attempts_left-1, timeout=timeout)
 
-    def send_request(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None) -> mitmproxy.net.http.Response:
+    def send_request(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None, timeout:Optional[int]=None) -> mitmproxy.net.http.Response:
         """
         Serialize and send the request to RabbitMQ, receive the response and
         unserialize.
@@ -388,9 +387,11 @@ class HTTPProxyClient(object):
             request: A mitmproxy Request object.
             corr_id: the correlation id for this request, a uuid. If none is
                 provided, one will be generated.
+            timeout: the timeout for this request. If None,
+                self.REQUEST_TIMEOUT will be used.
 
         Raises:
-            TimeoutException: self.request_timeout exceeded, request timeout.
+            TimeoutException: self.REQUEST_TIMEOUT/user-provided timeout exceeded, request timeout.
             NotConnectedException: We're currently not connected to AMQ. Will
                 attempt to reconnect so that next `call` is successful.
             UnauthorizedException: Missing or malformed X-UB-GUID header. This
@@ -414,7 +415,7 @@ class HTTPProxyClient(object):
                 body=message_body)
             self.rabbit_connection.add_callback_threadsafe(basic_pub)
 
-            response = self.get_response(corr_id)
+            response = self.get_response(corr_id, timeout=timeout)
         except Exception as e:
             if target_guid != SKIP_DB_WRITE:
                 # Couldn't successfully retrieve a response for this request. Still write to DB.
@@ -434,17 +435,21 @@ class HTTPProxyClient(object):
 
         return response
 
-    def get_response(self, corr_id:str) -> mitmproxy.net.http.Response:
+    def get_response(self, corr_id:str, timeout:Optional[int]) -> mitmproxy.net.http.Response:
         """
         This function reads from `self.responses[corr_id]` in a BLOCKING
         fashion until either a response is populated by the queue reader or
-        `self.request_timeout` is exceeded.
+        `self.REQUEST_TIMEOUT` is exceeded.
 
         `self.responses` is populated by `self.on_response()`.
 
         Args:
             corr_id: The correlation ID for this request.
         """
+
+        if not timeout:
+            timeout = self.REQUEST_TIMEOUT
+
         start = time.time()
         try:
             while True:
@@ -454,7 +459,7 @@ class HTTPProxyClient(object):
                 except KeyError:
                     pass
 
-                timeout = time.time() - start >= self.request_timeout
+                timeout = time.time() - start >= timeout
 
                 if (not resp and timeout) or self.shutting_down:
                     raise TimeoutException
