@@ -87,16 +87,22 @@ class HTTPProxyClient(object):
         self.db_write_queue : queue.SimpleQueue = queue.SimpleQueue()
         self.is_fuzzer = is_fuzzer
 
+        # These variables prevent race conditions on first startup.
+        self.rabbit_first_start = False
+        self.postgresql_first_start = False
+
     def threads_start(self) -> None:
         """
-        Spawn the required threads and store them in self.threads. If the
-        thread is already present in that dictionary, we check whether it's
-        alive and if not we restart it. 
-
-        This function is called both at startup and in the event a thread dies.
+        Spawn the required threads and store them in self.threads.
 
         - RabbitMQ connection thread.
         - PostgreSQL writer thread.
+
+        If the thread is already present in that dictionary, we check whether
+        it's alive and if not we restart it. 
+
+        This function is called both at startup and in the event a thread dies.
+        This function blocks at first startup until both threads are started.
         """
         req_targets = [self.thread_rabbit, self.thread_postgres]
 
@@ -109,6 +115,12 @@ class HTTPProxyClient(object):
 
             self.threads[target] = self.thread_spawn(target=target,
                     name=target.__name__)
+
+        logger.info("Waiting for HTTPProxyClient thread startup.")
+        while not self.rabbit_first_start or \
+                not self.postgresql_first_start:
+            time.sleep(0.1)
+            
 
     def threads_shutdown(self) -> None:
         """
@@ -240,6 +252,7 @@ class HTTPProxyClient(object):
         information see `unicornbottle.database`.
         """
         logger.info("PostgreSQL thread starting")
+        self.postgresql_first_start = True
         try:
             while True:
                 if self.shutting_down:
@@ -271,6 +284,7 @@ class HTTPProxyClient(object):
                 on_message_callback=self.on_response,
                 auto_ack=True)
 
+            self.rabbit_first_start = True
             logger.info("RabbitMQ thread ready to start consuming")
             self.channel.start_consuming() 
         except:
@@ -341,7 +355,7 @@ class HTTPProxyClient(object):
 
         return str(target_guid)
 
-    def send_retry(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None, attempts_left:int=3, timeout:Optional[int]=None) -> mitmproxy.net.http.Response:
+    def send_retry(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None, attempts_left:int=3, timeout:Optional[float]=None) -> mitmproxy.net.http.Response:
         """
         Wrapper for send_request that retries.
 
@@ -366,7 +380,7 @@ class HTTPProxyClient(object):
             return self.send_retry(request=request, corr_id=corr_id,
                     attempts_left=attempts_left-1, timeout=timeout)
 
-    def send_request(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None, timeout:Optional[int]=None) -> mitmproxy.net.http.Response:
+    def send_request(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None, timeout:Optional[float]=None) -> mitmproxy.net.http.Response:
         """
         Serialize and send the request to RabbitMQ, receive the response and
         unserialize.
@@ -435,7 +449,7 @@ class HTTPProxyClient(object):
 
         return response
 
-    def get_response(self, corr_id:str, request_timeout:Optional[int]) -> mitmproxy.net.http.Response:
+    def get_response(self, corr_id:str, request_timeout:Optional[float]) -> mitmproxy.net.http.Response:
         """
         This function reads from `self.responses[corr_id]` in a BLOCKING
         fashion until either a response is populated by the queue reader or
