@@ -243,7 +243,11 @@ class FuzzLocation():
         self.tmp_filename = "/tmp/%s.temp" % uuid.uuid4()
 
     def __repr__(self) -> str:
-        return "<FuzzLocation %s (%s)>" % (self.param_name, FuzzParamType(self.param_type))
+        try:
+            url = self.base_request_state['host'] + self.base_request_state['path'].decode('utf-8')
+        except:
+            url = "CANT_DECODE_URL"
+        return "<FuzzLocation %s (fuzzing %s/%s)>" % (url, self.param_name, FuzzParamType(self.param_type))
 
     def get_login_data(self) -> dict:
         """
