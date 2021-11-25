@@ -243,7 +243,7 @@ class FuzzLocation():
         self.tmp_filename = "/tmp/%s.temp" % uuid.uuid4()
 
     def __repr__(self) -> str:
-        return "<FuzzLocation %s (%s)>" % (self.param_name, self.param_type)
+        return "<FuzzLocation %s (%s)>" % (self.param_name, FuzzParamType(self.param_type))
 
     def get_login_data(self) -> dict:
         """
