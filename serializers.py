@@ -99,12 +99,12 @@ class MessageSerializer():
 
 class Request(MessageSerializer):
 
-    def toMITM(self) -> mitmproxy.net.http.Request:
+    def toMITM(self) -> mitmproxy.http.Request:
         """
         Grabs data stored in the request state and converts it into a
         mitmproxy.http.Request object.
         """
-        return mitmproxy.net.http.Request(**self.state)
+        return mitmproxy.http.Request(**self.state)
 
     def toPlain(self) -> str:
         """
@@ -118,12 +118,12 @@ class Request(MessageSerializer):
         return raw_request.decode('utf-8')
 
 class Response(MessageSerializer):
-    def toMITM(self) -> mitmproxy.net.http.Response:
+    def toMITM(self) -> mitmproxy.http.Response:
         """
         Grabs data stored in the request state and converts it into a
         mitmproxy.http.Response object.
         """
-        return mitmproxy.net.http.Response(**self.state)
+        return mitmproxy.http.Response(**self.state)
 
 class ExceptionSerializer(MessageSerializer):
     """
@@ -142,7 +142,7 @@ class DatabaseWriteItem():
     Simple data structure for communication between the `send_request` thread
     and the `thread_postgres` thread.
     """
-    def __init__(self, request:mitmproxy.net.http.Request, response:Optional[mitmproxy.net.http.Response], 
+    def __init__(self, request:mitmproxy.http.Request, response:Optional[mitmproxy.http.Response], 
             exception:Optional[ExceptionSerializer]=None, target_guid:Optional[str]=None) -> None:
         """
         Default constructor.
@@ -280,7 +280,7 @@ class FuzzLocation():
         else:
             return self.login_data
     
-    def authenticate_request(self, req:mitmproxy.net.http.Request) -> mitmproxy.net.http.Request:
+    def authenticate_request(self, req:mitmproxy.http.Request) -> mitmproxy.http.Request:
         """
         Authenticates a request. This is done by calling the login script and
         parsing the output file. 
@@ -292,13 +292,13 @@ class FuzzLocation():
 
         return req
 
-    def get_baseline(self) -> mitmproxy.net.http.Request:
+    def get_baseline(self) -> mitmproxy.http.Request:
         """
         Gets the request to fuzz without any modifications except for
         authentication. If authentication is required for this fuzz location,
         it authenticates the request prior to returning it.
         """
-        request = mitmproxy.net.http.Request(**dict(self.base_request_state))
+        request = mitmproxy.http.Request(**dict(self.base_request_state))
         if self.login_script:
             request = self.authenticate_request(request)
 
@@ -316,14 +316,19 @@ class FuzzLocation():
         elif self.param_type == FuzzParamType.PARAM_MULTIPART:
             return request.multipart_form[self.param_name.encode('utf-8')]
         elif self.param_type == FuzzParamType.PARAM_JSON:
-            body_json = json.loads(request.content)
-            return body_json[self.param_name]
+            if request.content is not None:
+                body_json = json.loads(request.content)
+                return body_json[self.param_name]
+            else:
+                raise InvalidFuzzLocation("Could not read request content, therefore can't get %s %s" % (self.param_name,
+                            self.param_type))
+
         elif self.param_type == FuzzParamType.HEADER:
             return request.headers[self.param_name]
         else:
             raise Exception("Unhandled FuzzParamType")
 
-    def fuzz(self, value:str) -> mitmproxy.net.http.Request:
+    def fuzz(self, value:str) -> mitmproxy.http.Request:
         """
         Inserts the value at the insertion point. If a login script has been
         set on the constructor then we are going to attempt to authenticate
@@ -342,13 +347,18 @@ class FuzzLocation():
                 raise InvalidFuzzLocation("Can't insert into urlencoded form.")
         elif self.param_type == FuzzParamType.PARAM_MULTIPART:
             if request.multipart_form:
-                request.multipart_form[self.param_name.encode('utf-8')] = value
+                request.multipart_form[self.param_name.encode('utf-8')] = value.encode('utf-8')
             else:
                 raise InvalidFuzzLocation("Can't insert into multipart form.")
         elif self.param_type == FuzzParamType.PARAM_JSON:
-            body_json = json.loads(request.content)
-            body_json[self.param_name] = value
-            request.text = json.dumps(body_json)
+            if request.content is not None:
+                body_json = json.loads(request.content)
+                body_json[self.param_name] = value
+                request.text = json.dumps(body_json)
+            else:
+                raise InvalidFuzzLocation("Can't fuzz param %s %s because request.content is null." % (self.param_name,
+                            self.param_type))
+
         elif self.param_type == FuzzParamType.HEADER:
             request.headers[self.param_name] = value
         else:
@@ -358,7 +368,7 @@ class FuzzLocation():
 
     @staticmethod
     def generate(target_guid:str, target_id:int, req_resp_id:int, em_id:int,
-            request:mitmproxy.net.http.Request, fuzz_params:FuzzParams,
+            request:mitmproxy.http.Request, fuzz_params:FuzzParams,
             login_script:Optional[str]=None) -> List:
         """
         Generates fuzz locations based on a request.
@@ -400,10 +410,14 @@ class FuzzLocation():
                     fuzz_locations.append(FuzzLocation(param_type=FuzzParamType.PARAM_BODY, param_name=param, **base_kwargs))
 
             elif param_type == FuzzParamType.PARAM_MULTIPART:
-                for param in request.multipart_form:
-                    fuzz_locations.append(FuzzLocation(param_type=FuzzParamType.PARAM_MULTIPART, param_name=param, **base_kwargs))
+                param_bytes = None # For MyPy.
+                for param_bytes in request.multipart_form:
+                    fuzz_locations.append(FuzzLocation(param_type=FuzzParamType.PARAM_MULTIPART, param_name=param_bytes.decode('utf-8'), **base_kwargs))
 
             elif param_type == FuzzParamType.PARAM_JSON:
+                if request.content is None:
+                    continue
+
                 try:
                     body_json = json.loads(request.content)
                 except json.JSONDecodeError:

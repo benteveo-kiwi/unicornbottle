@@ -335,7 +335,7 @@ class HTTPProxyClient(object):
         except ValueError:
             return False
 
-    def target_guid(self, request:mitmproxy.net.http.Request) -> str:
+    def target_guid(self, request:mitmproxy.http.Request) -> str:
         """
         Obtain target guid from request.
 
@@ -355,7 +355,7 @@ class HTTPProxyClient(object):
 
         return str(target_guid)
 
-    def send_retry(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None, attempts_left:int=3, timeout:Optional[float]=None) -> mitmproxy.net.http.Response:
+    def send_retry(self, request : mitmproxy.http.Request, corr_id:Optional[str]=None, attempts_left:int=3, timeout:Optional[float]=None) -> mitmproxy.http.Response:
         """
         Wrapper for send_request that retries.
 
@@ -380,7 +380,7 @@ class HTTPProxyClient(object):
             return self.send_retry(request=request, corr_id=corr_id,
                     attempts_left=attempts_left-1, timeout=timeout)
 
-    def send_request(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None, timeout:Optional[float]=None) -> mitmproxy.net.http.Response:
+    def send_request(self, request : mitmproxy.http.Request, corr_id:Optional[str]=None, timeout:Optional[float]=None) -> mitmproxy.http.Response:
         """
         Serialize and send the request to RabbitMQ, receive the response and
         unserialize.
@@ -449,7 +449,7 @@ class HTTPProxyClient(object):
 
         return response
 
-    def get_response(self, corr_id:str, request_timeout:Optional[float]) -> mitmproxy.net.http.Response:
+    def get_response(self, corr_id:str, request_timeout:Optional[float]) -> mitmproxy.http.Response:
         """
         This function reads from `self.responses[corr_id]` in a BLOCKING
         fashion until either a response is populated by the queue reader or

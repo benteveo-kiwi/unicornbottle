@@ -300,7 +300,7 @@ class RequestResponse(Base):
 
         return str(req_string + "\n\n" + resp_string)
 
-    def get_mitmproxy_request(self) -> mitmproxy.net.http.Request:
+    def get_mitmproxy_request(self) -> mitmproxy.http.Request:
         """
         Converts this database row to a mitmproxy representation of an HTTP
         request.
