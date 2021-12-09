@@ -458,8 +458,11 @@ class FuzzLocation():
         del j['login_script']
 
         fp = j.get('fuzz_params')
-        fuzz_params = FuzzParams(fp.get('techniques'), fp.get('req_timeout'))
-        del j['fuzz_params']
+        if fp:
+            fuzz_params = FuzzParams(fp.get('techniques'), fp.get('req_timeout'))
+            del j['fuzz_params']
+        else:
+            fuzz_params = FuzzParams()
 
         return cls(**j, fuzz_params=fuzz_params, login_script=login_script)
 
