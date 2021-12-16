@@ -120,7 +120,6 @@ class HTTPProxyClient(object):
         while not self.rabbit_first_start or \
                 not self.postgresql_first_start:
             time.sleep(0.1)
-            
 
     def threads_shutdown(self) -> None:
         """
@@ -343,9 +342,10 @@ class HTTPProxyClient(object):
             request: the request to get the target_guid from.
 
         Returns:
-            the target GUID.
+            the target GUID or SKIP_DB_WRITE constant. If the return value of
+            this function is SKIP_DB_WRITE, this request will not be written to
+            the database write queue in `send_request`.
         """
-        exc = UnauthorizedException("Missing required authentication headers.")
         try:
             target_guid = request.headers['X-UB-GUID']
             if not self.target_guid_valid(target_guid):
@@ -354,6 +354,15 @@ class HTTPProxyClient(object):
             target_guid = SKIP_DB_WRITE
 
         return str(target_guid)
+
+    def modify_headers(self, request: mitmproxy.net.http.Request) -> mitmproxy.net.http.Request:
+        """
+        Modify headers prior to sending. In particular, strip any X-UB headers
+        and add X-Hackerone: benteveo header for traffic tagging.
+        """
+        request.headers['X-Hackerone'] = 'benteveo'
+
+        return request
 
     def send_retry(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None, attempts_left:int=3, timeout:Optional[float]=None) -> mitmproxy.net.http.Response:
         """
@@ -414,6 +423,8 @@ class HTTPProxyClient(object):
         target_guid = self.target_guid(request)
         if not corr_id:
             corr_id = str(uuid.uuid4()) 
+
+        request = self.modify_headers(request)
 
         try:
             if not self.threads_alive() or (self.rabbit_connection is None or self.channel is None):
