@@ -361,6 +361,9 @@ class HTTPProxyClient(object):
         and add X-Hackerone: benteveo header for traffic tagging.
         """
         request.headers['X-Hackerone'] = 'benteveo'
+        for header_name in request.headers:
+            if header_name.startswith('X-UB-'):
+                del request.headers[header_name]
 
         return request
 
