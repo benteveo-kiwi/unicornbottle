@@ -63,6 +63,10 @@ class HTTPProxyClient(object):
     # writing.
     MAX_BULK_WRITE = 100
 
+    # Header used for indicating the name of the target GUID in requests sent
+    # to the proxy.
+    UB_GUID_HEADER = 'X-UB-GUID'
+
     def __init__(self, is_fuzzer:bool=False) -> None:
         """
         Main constructor. `threads_start()` should normally be called by the
@@ -347,7 +351,7 @@ class HTTPProxyClient(object):
             the database write queue in `send_request`.
         """
         try:
-            target_guid = request.headers['X-UB-GUID']
+            target_guid = request.headers[self.UB_GUID_HEADER]
             if not self.target_guid_valid(target_guid):
                 target_guid = SKIP_DB_WRITE
         except KeyError:
@@ -361,9 +365,6 @@ class HTTPProxyClient(object):
         and add X-Hackerone: benteveo header for traffic tagging.
         """
         request.headers['X-Hackerone'] = 'benteveo'
-        for header_name in request.headers:
-            if header_name.startswith('X-UB-'):
-                del request.headers[header_name]
 
         return request
 
