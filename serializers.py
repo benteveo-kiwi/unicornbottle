@@ -3,6 +3,7 @@ from mitmproxy.net.http.http1 import assemble
 from typing import Dict, Optional, Any, Union, TypeVar, Type, List, Tuple
 import base64
 import json
+import logging
 import mitmproxy.net.http
 import os
 import subprocess
@@ -12,6 +13,8 @@ import uuid
 MS = TypeVar('MS', bound='MessageSerializer')
 FL = TypeVar('FL', bound='FuzzLocation')
 PB = TypeVar('PB', bound='Pingback')
+
+logger = logging.getLogger(__name__)
 
 class RequestEncoder(json.JSONEncoder):
     """
@@ -163,7 +166,11 @@ class DatabaseWriteItem():
         if target_guid:
             self.target_guid = target_guid
         else:
-            self.target_guid = self.request.headers['X-UB-GUID']
+            try:
+                self.target_guid = self.request.headers['X-UB-GUID']
+            except KeyError:
+                logger.exception("Could not find X-UB-GUID header in headers: %s" % str(list(self.request.headers)))
+                raise
 
 class InvalidFuzzLocation(Exception):
     pass
