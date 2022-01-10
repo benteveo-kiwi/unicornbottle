@@ -320,6 +320,8 @@ class HTTPProxyClient(object):
             if props.correlation_id in self.corr_ids:
                 self.responses[props.correlation_id] = body
                 del self.corr_ids[props.correlation_id]
+            else:
+                logger.error("Received message whose corr_id we're not currently tracking. corr_id: %s" % props.correlation_id)
 
     def target_guid_valid(self, val:str) -> bool:
         """
@@ -493,7 +495,7 @@ class HTTPProxyClient(object):
                 timeout_exceeded = time.time() - start >= request_timeout
 
                 if (not resp and timeout_exceeded) or self.shutting_down:
-                    log_message = "Timeout exceeded after %ss" % request_timeout 
+                    log_message = "%s: Timeout exceeded after %ss. Len responses: %s" % (corr_id, request_timeout, len(self.responses))
                     if pretty_url:
                         log_message += ". For url '%s'" % pretty_url
 
