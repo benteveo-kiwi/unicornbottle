@@ -444,7 +444,7 @@ class HTTPProxyClient(object):
                 body=message_body)
             self.rabbit_connection.add_callback_threadsafe(basic_pub)
 
-            response = self.get_response(corr_id, request_timeout=timeout)
+            response = self.get_response(corr_id, request_timeout=timeout, pretty_url=request.pretty_url)
         except Exception as e:
             if target_guid != SKIP_DB_WRITE:
                 # Couldn't successfully retrieve a response for this request. Still write to DB.
@@ -464,7 +464,7 @@ class HTTPProxyClient(object):
 
         return response
 
-    def get_response(self, corr_id:str, request_timeout:Optional[float]) -> mitmproxy.net.http.Response:
+    def get_response(self, corr_id:str, request_timeout:Optional[float], pretty_url:Optional[str]=None) -> mitmproxy.net.http.Response:
         """
         This function reads from `self.responses[corr_id]` in a BLOCKING
         fashion until either a response is populated by the queue reader or
@@ -475,6 +475,7 @@ class HTTPProxyClient(object):
         Args:
             corr_id: The correlation ID for this request.
             request_timeout: how much to wait before raising TimeoutException. If None self.REQUEST_TIMEOUT is used.
+            pretty_url: the pretty url for logging output only.
         """
 
         if not request_timeout:
@@ -492,8 +493,11 @@ class HTTPProxyClient(object):
                 timeout_exceeded = time.time() - start >= request_timeout
 
                 if (not resp and timeout_exceeded) or self.shutting_down:
-                    raise TimeoutException("Timeout exceeded after %ss or shutting down" 
-                            % request_timeout)
+                    log_message = "Timeout exceeded after %ss" % request_timeout 
+                    if pretty_url:
+                        log_message += ". For url '%s'" % pretty_url
+
+                    raise TimeoutException(log_message)
                 elif resp:
                     return Response.fromJSON(self.responses[corr_id]).toMITM()
 
