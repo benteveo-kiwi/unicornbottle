@@ -321,7 +321,7 @@ class HTTPProxyClient(object):
                 self.responses[props.correlation_id] = body
                 del self.corr_ids[props.correlation_id]
             else:
-                logger.error("Received message whose corr_id we're not currently tracking. corr_id: %s" % props.correlation_id)
+                logger.debug("Received message whose corr_id we're not currently tracking. corr_id: %s" % props.correlation_id)
 
     def target_guid_valid(self, val:str) -> bool:
         """
