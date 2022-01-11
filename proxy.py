@@ -4,7 +4,7 @@ from io import BytesIO
 from sqlalchemy import select, and_, exc
 from sqlalchemy.orm.session import Session
 from threading import Event, Thread
-from typing import Dict, Optional, Any, Callable
+from typing import Dict, Optional, Any, Callable, overload
 from unicornbottle.database import database_connect, InvalidSchemaException
 from unicornbottle.models import DatabaseWriteItem, RequestResponse, ExceptionSerializer, EndpointMetadata
 from unicornbottle.rabbitmq import rabbitmq_connect
@@ -395,6 +395,14 @@ class HTTPProxyClient(object):
             return self.send_retry(request=request, corr_id=corr_id,
                     attempts_left=attempts_left-1, timeout=timeout)
 
+    def log_publish_callback(self, corr_id:str, callback:Callable, *args:Any, **kwargs:Any) -> Any:
+        """
+        Simple wrapper for basic publish for the purpose of debug logging. It
+        can be handy when debugging when the callback actually gets called. 
+        """
+        logger.debug("%s: Executing basic_pub." % (corr_id))
+        return callback(*args, **kwargs)
+
     def send_request(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None, timeout:Optional[float]=None) -> mitmproxy.net.http.Response:
         """
         Serialize and send the request to RabbitMQ, receive the response and
@@ -442,7 +450,7 @@ class HTTPProxyClient(object):
             self.corr_ids[corr_id] = True
 
             message_body = Request(request.get_state()).toJSON() # type:ignore
-            basic_pub = partial(self.channel.basic_publish, exchange='', routing_key='rpc_queue',
+            basic_pub = partial(self.log_publish_callback, corr_id, self.channel.basic_publish, exchange='', routing_key='rpc_queue',
                 properties=pika.BasicProperties(reply_to=self.callback_queue, correlation_id=corr_id,),
                 body=message_body)
             self.rabbit_connection.add_callback_threadsafe(basic_pub)
