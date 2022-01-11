@@ -438,6 +438,7 @@ class HTTPProxyClient(object):
                 self.threads_start()
                 raise NotConnectedException("Not connected. Please retry in a jiffy.") # still raise. Clients must retry.
 
+            logger.debug("%s:Created corr_id in dict" % (corr_id))
             self.corr_ids[corr_id] = True
 
             message_body = Request(request.get_state()).toJSON() # type:ignore
@@ -445,6 +446,8 @@ class HTTPProxyClient(object):
                 properties=pika.BasicProperties(reply_to=self.callback_queue, correlation_id=corr_id,),
                 body=message_body)
             self.rabbit_connection.add_callback_threadsafe(basic_pub)
+
+            logger.debug("%s:Sent to add_callback_threadsafe." % (corr_id))
 
             response = self.get_response(corr_id, request_timeout=timeout, pretty_url=request.pretty_url)
         except Exception as e:
