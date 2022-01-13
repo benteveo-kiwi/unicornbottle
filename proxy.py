@@ -450,8 +450,11 @@ class HTTPProxyClient(object):
             self.corr_ids[corr_id] = True
 
             message_body = Request(request.get_state()).toJSON() # type:ignore
+            timeout_millis = str(self.REQUEST_TIMEOUT * 1000) # Make use of TTL:
+                # https://www.rabbitmq.com/ttl.html to prevent wasting time.
+
             basic_pub = partial(self.log_publish_callback, corr_id, self.channel.basic_publish, exchange='', routing_key='rpc_queue',
-                properties=pika.BasicProperties(reply_to=self.callback_queue, correlation_id=corr_id,),
+                properties=pika.BasicProperties(reply_to=self.callback_queue, correlation_id=corr_id, expiration=timeout_millis,),
                 body=message_body)
             self.rabbit_connection.add_callback_threadsafe(basic_pub)
 
