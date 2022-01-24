@@ -20,16 +20,28 @@ Base : Any = declarative_base()
 class InvalidScopeName(Exception):
     pass
 
+class Platform(enum.Enum):
+    H1 = "H1"
+
 class Target(Base):
     """
     This table contains metadata regarding targets.
     """
     __tablename__ = "target"
-    __table_args__ = {'schema': 'public'}
+    # See: https://docs.sqlalchemy.org/en/13/orm/extensions/declarative/table_config.html#table-configuration
+    __table_args__ = (
+        UniqueConstraint('name', 'platform'),
+        {'schema': 'public'}
+    )
 
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False, index=True, unique=True)
+
+    name = Column(String, nullable=False, index=True)
+    platform = Column(Enum(Platform), nullable=True, index=True)
     guid = Column(UUID(), nullable=False, index=True, unique=True)
+    active = Column(Boolean, default=False, index=True)
+
+    assets : RelationshipProperty = relationship("Asset") 
 
     @staticmethod
     def get_id_by_guid(db:Session, target_guid:str) -> int:
@@ -40,6 +52,20 @@ class Target(Base):
             target_guid: the guid to perform the search for. It will fail if the query fails to return exactly one row.
         """
         return int(db.query(Target.id).filter(Target.guid == target_guid).scalar())
+
+class Asset(Base):
+    """
+    This table contains a representation of "assets" within the target BB.
+    """
+    __tablename__ = "asset"
+    __table_args__ = {'schema': 'public'}
+
+    id = Column(Integer, primary_key=True)
+    target_id = Column(Integer, ForeignKey('public.target.id'), nullable=False, index=True)
+
+    type = Column(String, nullable=False, index=True)
+    identifier = Column(String, nullable=True, index=True)
+    description_str = Column(String, nullable=True)
 
 class Scope(Base):
     """

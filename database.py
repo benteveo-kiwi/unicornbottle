@@ -25,7 +25,7 @@ def get_url() -> str:
     
     db = config['database']
 
-    return "postgresql://%s:%s@%s/%s" % (quote(db['username']),
+    return "postgresql://%s:%s@%s/%s?client_encoding=utf8 " % (quote(db['username']),
             quote(db['password']), quote(db['hostname']),
             quote(db['database']))
 
