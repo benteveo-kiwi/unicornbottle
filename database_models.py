@@ -330,7 +330,9 @@ class RequestResponse(Base):
         resp = None
         resp_status_code=None
         if dwi.response is not None:
-            resp = Response(dwi.response.get_state()).toJSON()
+            # TODO: find the most-perfect-ever heuristic to avoid clobbering
+            # the DB with garbage.
+            # resp = Response(dwi.response.get_state()).toJSON()
             resp_status_code=dwi.response.status_code
 
         req = Request(dwi.request.get_state()).toJSON()
