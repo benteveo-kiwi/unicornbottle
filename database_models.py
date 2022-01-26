@@ -1,11 +1,12 @@
-from mitmproxy.net.http.http1 import assemble
-from sqlalchemy import Column, Integer, String, JSON, ForeignKey, UniqueConstraint, Boolean, Enum
 from functools import total_ordering
-from sqlalchemy import or_, not_, and_
+from mitmproxy.net.http.http1 import assemble
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship, RelationshipProperty, Query
+from sqlalchemy import Column, Integer, String, JSON, ForeignKey, UniqueConstraint, Boolean, Enum
+from sqlalchemy import func
+from sqlalchemy import or_, not_, and_
 from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm import relationship, RelationshipProperty, Query
 from sqlalchemy.orm.session import Session
 from typing import Dict, Optional, Any, Union, TypeVar, Type, List, Tuple
 from unicornbottle.serializers import Request, Response, ExceptionSerializer, DatabaseWriteItem
@@ -92,12 +93,36 @@ class ScopeURL(Base):
     pretty_url_like.
     """
     __tablename__ = "scope_url"
+    __table_args__ = (UniqueConstraint('scope_id', 'pretty_url_like', name='_scope_purl_uc'),)
 
     id = Column(Integer, primary_key=True)
     scope_id = Column(Integer, ForeignKey('scope.id'), nullable=False, index=True)
     pretty_url_like = Column(String, nullable=False, index=True)
     login_script = Column(String)
     negative = Column(Boolean, default=False)
+
+    @staticmethod
+    def get_uncrawled(db:Session, scope_name:str) -> Query:
+        """
+        Gets a list of ScopeURLs that would return no matches from the
+        EndpointMetadata table because they have never been crawled. This
+        serves to populate the EndpointMetadata table on first runs.
+
+        Args:
+            db: the db as returned by `unicornbottle.database.database_connect`
+            scope_name: the scope as stored in the `Scope.name` model.
+        """
+        try:
+            scope = db.query(Scope).filter(Scope.name == scope_name).one()
+        except NoResultFound:
+            raise InvalidScopeName("A scope named %s does not exist in the schema" % scope_name)
+
+        # Join.
+        join_filter = (EndpointMetadata.pretty_url == func.replace(ScopeURL.pretty_url_like, '%', ''))
+        rows:Query = db.query(ScopeURL, EndpointMetadata).join(EndpointMetadata, join_filter,
+                        isouter=True).filter(ScopeURL.scope_id == scope.id, EndpointMetadata.id == None)
+
+        return rows
 
 class EndpointMetadata(Base):
     """
@@ -112,7 +137,6 @@ class EndpointMetadata(Base):
     id = Column(Integer, primary_key=True)
     pretty_url = Column(String, index=True)
     method = Column(String, index=True)
-
 
     crawl_count = Column(Integer, default=0, nullable=False) # Successful crawl count.
 
@@ -175,7 +199,7 @@ class EndpointMetadata(Base):
 
         # Optional filters based on function parameters.
         if len(url_filters) > 0:
-            rows = rows.filter(and_(*url_filters))
+            rows = rows.filter(or_(*url_filters))
 
         if max_crawl_count != -1:
             rows = rows.filter(EndpointMetadata.crawl_count <= max_crawl_count)
@@ -198,6 +222,8 @@ class EndpointMetadata(Base):
     def get_crawl_endpoints(db:Session, scope_name:str, limit:int, max_crawl_count:int) -> List[Tuple[str, Optional[str]]]:
         """
         Gets endpoints that will be sent to the RabbitMQ queue as crawl tasks.
+        It gets these based on URLs already existing in EndpointMetadata, as
+        well as on URLs present in the `scope_urls` table.
 
         Args:
             db: the db as returned by `unicornbottle.database.database_connect`
@@ -207,13 +233,25 @@ class EndpointMetadata(Base):
         """
         rows = EndpointMetadata.get_endpoints_by_scope(db, scope_name, limit, max_crawl_count)
 
-        # Transform and increment crawl_count.
+        # Transform data to make it consumable by the RabbitMQ producer.
         urls = []
         for row in rows.all():
             endpoint_metadata = row[0]
             scope_url = row[1]
 
-            urls.append((endpoint_metadata.pretty_url, scope_url.login_script))
+            login_script = None if scope_url is None else scope_url.login_script # scope_url is none 
+                # when we login_script is none due to the query logic.
+
+            crawl_tuple = (endpoint_metadata.pretty_url, login_script)
+            if crawl_tuple not in urls:
+                urls.append(crawl_tuple)
+
+        uncrawled_scope_urls = ScopeURL.get_uncrawled(db, scope_name)
+        for row in uncrawled_scope_urls.all():
+            scope_url, _ = row
+            crawl_tuple = (scope_url.pretty_url_like.replace('%', ''), scope_url.login_script)
+            if crawl_tuple not in urls:
+                urls.append(crawl_tuple)
 
         return urls
 
