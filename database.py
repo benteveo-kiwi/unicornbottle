@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine, engine
+from sqlalchemy.orm import Session
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
-from sqlalchemy.orm import Session
 from typing import Dict, Optional, Any, Union, TypeVar, Type
 from unicornbottle.environment import read_configuration_file
 from unicornbottle.models import Base
@@ -92,3 +92,4 @@ def database_connect(schema : Optional[str]=None, create:bool=False, disable_poo
     session : Session = Sess()
 
     return session
+

@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 class MissingConfigurationFile(Exception):
     pass
 
-@functools.cache()
+@functools.cache
 def read_configuration_file() -> configparser.ConfigParser:
     """
     Reads the applicable configuration file. If the file doesn't exist, it

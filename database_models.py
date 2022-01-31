@@ -1,10 +1,11 @@
 from functools import total_ordering
 from mitmproxy.net.http.http1 import assemble
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, JSON, ForeignKey, UniqueConstraint, Boolean, Enum
 from sqlalchemy import func
-from sqlalchemy import or_, not_, and_
+from sqlalchemy import or_, not_, and_, any_, all_
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import relationship, RelationshipProperty, Query
 from sqlalchemy.orm.session import Session
@@ -17,6 +18,14 @@ import mitmproxy
 RR = TypeVar('RR', bound='RequestResponse')
 SE = TypeVar('SE', bound='Severity')
 Base : Any = declarative_base()
+
+STATIC_FILES = [
+    '%.png', '%.gif', '%.jpg', '%.jpeg', '%.svg', '%.webp', '%.tif', '%.tiff', '%.css', '%.js', '%.mp4', '%.woff', '%.woff2', '%.json', '%.ico',
+]
+
+def get_literal_query(query:Query) -> str:
+    debug_query = query.statement.compile(dialect=postgresql.dialect(),compile_kwargs={"literal_binds": True})
+    return debug_query
 
 class InvalidScopeName(Exception):
     pass
@@ -138,7 +147,7 @@ class EndpointMetadata(Base):
     pretty_url = Column(String, index=True)
     method = Column(String, index=True)
 
-    crawl_count = Column(Integer, default=0, nullable=False) # Successful crawl count.
+    crawl_count = Column(Integer, default=0, nullable=False) # Successful OR failed crawl count.
 
     # Crawl failed due to bad HTTP status code or bad URL in general.  The idea
     # is that these kinds of failures may occur even if there are no bugs in
@@ -164,7 +173,7 @@ class EndpointMetadata(Base):
     @staticmethod
     def get_endpoints_by_scope(db:Session, scope_name:str, limit:int,
             max_crawl_count:int, method:Optional[str]=None,
-            order_by:Optional[Column]=None) -> Query:
+            order_by:Optional[Column]=None, exclude_static:bool=True) -> Query:
         """
         Returns the query object required in order to get all endpoints filtered by scope.
 
@@ -175,6 +184,9 @@ class EndpointMetadata(Base):
             max_crawl_count: exclude rows with a `crawl_count` higher than this value.
             method: filter by method if present.
             order_by: order by. If not present, will sort by crawl_count asc.
+            exclude_static: whether to exclude static looking urls, using a
+                LIKE that matches urls that blatantly very much look like JS, SVG
+                etc.
         """
         try:
             scope = db.query(Scope).filter(Scope.name == scope_name).one()
@@ -189,17 +201,22 @@ class EndpointMetadata(Base):
                 .join(ScopeURL, join_filter, isouter=True)
 
         # Filter.
-        url_filters = []
+        negative_scopes = []
+        positive_scopes = []
         for scope_url in scope.urls:
-            pretty_url_like = EndpointMetadata.pretty_url.like(scope_url.pretty_url_like)
             if scope_url.negative:
-                url_filters.append(not_(pretty_url_like))
+                negative_scopes.append(scope_url.pretty_url_like)
             else:
-                url_filters.append(pretty_url_like) #type:ignore
+                positive_scopes.append(scope_url.pretty_url_like)
+
+        if exclude_static:
+            rows = rows.filter(not_(EndpointMetadata.pretty_url.ilike(all_(STATIC_FILES))))
 
         # Optional filters based on function parameters.
-        if len(url_filters) > 0:
-            rows = rows.filter(or_(*url_filters))
+        if len(positive_scopes) > 0:
+            rows = rows.filter(EndpointMetadata.pretty_url.ilike(any_(positive_scopes)))
+        if len(negative_scopes) > 0:
+            rows = rows.filter(not_(EndpointMetadata.pretty_url.ilike(all_(negative_scopes))))
 
         if max_crawl_count != -1:
             rows = rows.filter(EndpointMetadata.crawl_count <= max_crawl_count)
@@ -246,6 +263,8 @@ class EndpointMetadata(Base):
             if crawl_tuple not in urls:
                 urls.append(crawl_tuple)
 
+        # Get URLs that have been added as a scope but never received an
+        # initial scan.
         uncrawled_scope_urls = ScopeURL.get_uncrawled(db, scope_name)
         for row in uncrawled_scope_urls.all():
             scope_url, _ = row
