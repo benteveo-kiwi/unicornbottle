@@ -221,7 +221,7 @@ class HTTPProxyClient(object):
                             # We don't want to fill the database with very
                             # noisy endpoints.
                             if len(em.request_responses) > self.MAX_REQ_RESPS:
-                                logger.debug("Skipping adding for %s because we exceeded MAX_REQ_RESPS")
+                                logger.debug("Skip adding for %s because we exceeded MAX_REQ_RESPS")
                                 continue
 
                         req_res.metadata_id = em.id
