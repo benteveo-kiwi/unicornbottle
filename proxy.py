@@ -1,5 +1,4 @@
 from functools import partial
-from unicornbottle.models import Request, Response
 from io import BytesIO
 from sqlalchemy import select, and_, exc
 from sqlalchemy.orm.session import Session
@@ -7,11 +6,13 @@ from threading import Event, Thread
 from typing import Dict, Optional, Any, Callable, overload
 from unicornbottle.database import database_connect, InvalidSchemaException
 from unicornbottle.models import DatabaseWriteItem, RequestResponse, ExceptionSerializer, EndpointMetadata
+from unicornbottle.models import Request, Response
 from unicornbottle.rabbitmq import rabbitmq_connect
 import logging
 import mitmproxy
 import pika
 import queue
+import re
 import threading
 import time
 import traceback
@@ -66,6 +67,9 @@ class HTTPProxyClient(object):
     # Header used for indicating the name of the target GUID in requests sent
     # to the proxy.
     UB_GUID_HEADER = 'X-UB-GUID'
+
+    # Maximum request_responses to store per EndpointMetadata.
+    MAX_REQ_RESPS = 120
 
     def __init__(self, is_fuzzer:bool=False) -> None:
         """
@@ -172,6 +176,21 @@ class HTTPProxyClient(object):
 
         return thread
 
+    def normalise_pretty_url(self, pretty_url:str) -> str:
+        """
+        Perform normalisation computations on the input pretty_url as received
+        from mitmproxy.
+        
+        The general idea behind this function is to aggregate similar URLs such as:
+
+        http://www.example.com/test/?id=1
+        http://www.example.com/test/?id=2
+
+        This is currently achieved by splitting the string on "?" and ";" and
+        returning element number 0. 
+        """
+        return str(re.split("\\?|;", pretty_url)[0])
+
     def thread_postgres_write(self, items_to_write:dict[str, list[RequestResponse]]) -> None:
         """
         Called when data is successfully read from the queue. Handles database
@@ -187,19 +206,25 @@ class HTTPProxyClient(object):
                     logger.debug("Adding %s items for schema %s" % (len(items_to_write[target_guid]), target_guid))
 
                     for req_res in items_to_write[target_guid]:
+                        normalised_pretty_url = self.normalise_pretty_url(str(req_res.pretty_url))
 
-                        stmt = select(EndpointMetadata).where(and_(EndpointMetadata.pretty_url == req_res.pretty_url, # type:ignore 
+                        stmt = select(EndpointMetadata).where(and_(EndpointMetadata.pretty_url == normalised_pretty_url, # type:ignore 
                             EndpointMetadata.method == req_res.method))
 
                         em = conn.execute(stmt).scalar()
 
                         if em is None:
-                            em = EndpointMetadata(pretty_url=req_res.pretty_url, method=req_res.method)
+                            em = EndpointMetadata(pretty_url=normalised_pretty_url, method=req_res.method)
                             conn.add(em)
                             conn.commit()
+                        else:
+                            # We don't want to fill the database with very
+                            # noisy endpoints.
+                            if len(em.request_responses) > self.MAX_REQ_RESPS:
+                                logger.debug("Skipping adding for %s because we exceeded MAX_REQ_RESPS")
+                                continue
 
                         req_res.metadata_id = em.id
-
                         conn.add(req_res)
 
                     conn.commit()

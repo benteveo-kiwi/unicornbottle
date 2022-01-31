@@ -23,10 +23,6 @@ STATIC_FILES = [
     '%.png', '%.gif', '%.jpg', '%.jpeg', '%.svg', '%.webp', '%.tif', '%.tiff', '%.css', '%.js', '%.mp4', '%.woff', '%.woff2', '%.json', '%.ico',
 ]
 
-def get_literal_query(query:Query) -> str:
-    debug_query = query.statement.compile(dialect=postgresql.dialect(),compile_kwargs={"literal_binds": True})
-    return debug_query
-
 class InvalidScopeName(Exception):
     pass
 
