@@ -242,7 +242,9 @@ class EndpointMetadata(Base):
         Args:
             db: the db as returned by `unicornbottle.database.database_connect`
             scope_name: the scope as stored in the `Scope.name` model.
-            limit: Absolute maximum number of results to return.
+            limit: maximum number of results to return from endpoint_metadata.
+                Note that if less than those results are retrievable, we may return
+                more data from any uncrawled_scopes.
             max_crawl_count: exclude rows with a `crawl_count` higher than this value.
         """
         rows = EndpointMetadata.get_endpoints_by_scope(db, scope_name, limit, max_crawl_count)
@@ -271,12 +273,13 @@ class EndpointMetadata(Base):
 
         # Get URLs that have been added as a scope but never received an
         # initial scan.
-        uncrawled_scope_urls = ScopeURL.get_uncrawled(db, scope_name)
-        for row in uncrawled_scope_urls.all():
-            scope_url, _ = row
-            crawl_tuple = (scope_url.pretty_url_like.replace('%', ''), scope_url.login_script)
-            if crawl_tuple not in urls:
-                urls.append(crawl_tuple)
+        if len(urls) < limit:
+            uncrawled_scope_urls = ScopeURL.get_uncrawled(db, scope_name)
+            for row in uncrawled_scope_urls.all():
+                scope_url, _ = row
+                crawl_tuple = (scope_url.pretty_url_like.replace('%', ''), scope_url.login_script)
+                if crawl_tuple not in urls:
+                    urls.append(crawl_tuple)
 
         return urls
 
