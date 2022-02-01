@@ -20,7 +20,7 @@ SE = TypeVar('SE', bound='Severity')
 Base : Any = declarative_base()
 
 STATIC_FILES = [
-    '%.png', '%.gif', '%.jpg', '%.jpeg', '%.svg', '%.webp', '%.tif', '%.tiff', '%.css', '%.js', '%.mp4', '%.woff', '%.woff2', '%.json', '%.ico',
+    '%.png', '%.gif', '%.jpg', '%.jpeg', '%.svg', '%.webp', '%.tif', '%.tiff', '%.css', '%.js', '%.mp4', '%.woff', '%.woff2', '%.json', '%.ico', '%.ttf', '%.pdf', '%.otf', '%.webm'
 ]
 
 class InvalidScopeName(Exception):
@@ -315,7 +315,7 @@ class RequestResponse(Base):
     __tablename__ = "request_response"
 
     id = Column(Integer, primary_key=True)
-    metadata_id = Column(Integer, ForeignKey('endpoint_metadata.id'), nullable=False, index=True)
+    metadata_id = Column(Integer, ForeignKey('endpoint_metadata.id', ondelete="CASCADE"), nullable=False, index=True)
     pwnage_id = Column(Integer, ForeignKey('pwnage.id'), index=True)
 
     pretty_url = Column(String, index=True)
