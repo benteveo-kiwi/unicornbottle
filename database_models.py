@@ -303,6 +303,41 @@ class EndpointMetadata(Base):
 
         return endpoints
 
+    @staticmethod
+    def crawl_finished(db:Session, pretty_url:str, update_crawl_count:bool, fail:bool, exception:bool) -> None:
+        """
+        Update or create an EndpointMetadata and set the right column values
+        corresponding to a successful or failed crawl attempt.
+
+        Args:
+            db: the db as returned by `unicornbottle.database.database_connect`
+            pretty_url: as stored in the model.
+            update_crawl_count: whether to update crawl count. This is updated
+                when a crawl task is created, but not when a failure or
+                exception is reported by a crawler.
+            fail: whether the crawl failed.
+            exception: whether the crawl exceptioned.
+        """
+        # If an endpoint for this URL doesn't exist, create it.
+        try:
+            filter = (EndpointMetadata.pretty_url == pretty_url) & (EndpointMetadata.method == "GET")
+            endpoint_metadata = db.query(EndpointMetadata).filter(filter).one()
+        except NoResultFound:
+            endpoint_metadata = EndpointMetadata(pretty_url=pretty_url, method="GET")
+            db.add(endpoint_metadata)
+            db.commit()
+
+        if update_crawl_count:
+            endpoint_metadata.crawl_count = EndpointMetadata.crawl_count + 1
+
+        if fail:
+            endpoint_metadata.crawl_fail_count = EndpointMetadata.crawl_fail_count + 1
+
+        if exception:
+            endpoint_metadata.crawl_exception_count = EndpointMetadata.crawl_exception_count + 1
+
+        db.commit()
+
 class RequestResponse(Base):
     """
     This table contains the requests sent through the proxy and, if there are
