@@ -1,5 +1,6 @@
 from functools import total_ordering
 from mitmproxy.net.http.http1 import assemble
+from random import randint
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
@@ -255,7 +256,16 @@ class EndpointMetadata(Base):
             login_script = None if scope_url is None else scope_url.login_script # scope_url is none 
                 # when we login_script is none due to the query logic.
 
-            crawl_tuple = (endpoint_metadata.pretty_url, login_script)
+            # Because we normalise the URLs in EndpointMetadata to not have a query string,
+            # therefore we need to get the querystring from there yonder,
+            # within RequestResponse.
+            nb_req_resp = len(endpoint_metadata.request_responses)
+            if nb_req_resp > 0:
+                crawl_url = endpoint_metadata.request_responses[randint(0, nb_req_resp - 1)].pretty_url # randomness makes everything better.
+            else:
+                crawl_url = endpoint_metadata.pretty_url
+
+            crawl_tuple = (crawl_url, login_script)
             if crawl_tuple not in urls:
                 urls.append(crawl_tuple)
 
