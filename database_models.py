@@ -4,9 +4,10 @@ from random import randint
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, JSON, ForeignKey, UniqueConstraint, Boolean, Enum
+from sqlalchemy import Column, Integer, String, JSON, ForeignKey, Boolean, Enum
 from sqlalchemy import func
 from sqlalchemy import or_, not_, and_, any_, all_
+from sqlalchemy import UniqueConstraint, CheckConstraint
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import relationship, RelationshipProperty, Query
 from sqlalchemy.orm.session import Session
@@ -138,7 +139,10 @@ class EndpointMetadata(Base):
     endpoint.
     """
     __tablename__ = "endpoint_metadata"
-    __table_args__ = (UniqueConstraint('pretty_url', 'method', name='_url_method_uc'),)
+    __table_args__ = (
+        UniqueConstraint('pretty_url', 'method', name='_url_method_uc'),
+        CheckConstraint("(POSITION('?' in pretty_url) = 0 AND POSITION(';' in pretty_url) = 0)", name='normalised_pretty_url'),
+    )
 
     id = Column(Integer, primary_key=True)
     pretty_url = Column(String, index=True)
