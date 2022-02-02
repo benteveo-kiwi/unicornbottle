@@ -12,7 +12,6 @@ import logging
 import mitmproxy
 import pika
 import queue
-import re
 import threading
 import time
 import traceback
@@ -176,21 +175,6 @@ class HTTPProxyClient(object):
 
         return thread
 
-    def normalise_pretty_url(self, pretty_url:str) -> str:
-        """
-        Perform normalisation computations on the input pretty_url as received
-        from mitmproxy.
-        
-        The general idea behind this function is to aggregate similar URLs such as:
-
-        http://www.example.com/test/?id=1
-        http://www.example.com/test/?id=2
-
-        This is currently achieved by splitting the string on "?" and ";" and
-        returning element number 0. 
-        """
-        return str(re.split("\\?|;", pretty_url)[0])
-
     def thread_postgres_write(self, items_to_write:dict[str, list[RequestResponse]]) -> None:
         """
         Called when data is successfully read from the queue. Handles database
@@ -206,7 +190,7 @@ class HTTPProxyClient(object):
                     logger.debug("Adding %s items for schema %s" % (len(items_to_write[target_guid]), target_guid))
 
                     for req_res in items_to_write[target_guid]:
-                        normalised_pretty_url = self.normalise_pretty_url(str(req_res.pretty_url))
+                        normalised_pretty_url = EndpointMetadata.normalise_pretty_url(str(req_res.pretty_url))
 
                         stmt = select(EndpointMetadata).where(and_(EndpointMetadata.pretty_url == normalised_pretty_url, # type:ignore 
                             EndpointMetadata.method == req_res.method))

@@ -16,6 +16,7 @@ from unicornbottle.serializers import Request, Response, ExceptionSerializer, Da
 import enum
 import json
 import mitmproxy
+import re
 
 RR = TypeVar('RR', bound='RequestResponse')
 SE = TypeVar('SE', bound='Severity')
@@ -308,6 +309,22 @@ class EndpointMetadata(Base):
         return endpoints
 
     @staticmethod
+    def normalise_pretty_url(pretty_url:str) -> str:
+        """
+        Perform normalisation computations on the input pretty_url as received
+        from mitmproxy.
+        
+        The general idea behind this function is to aggregate similar URLs such as:
+
+        http://www.example.com/test/?id=1
+        http://www.example.com/test/?id=2
+
+        This is currently achieved by splitting the string on "?" and ";" and
+        returning element number 0. 
+        """
+        return str(re.split("\\?|;", pretty_url)[0])
+
+    @staticmethod
     def crawl_finished(db:Session, pretty_url:str, update_crawl_count:bool, fail:bool, exception:bool) -> None:
         """
         Update or create an EndpointMetadata and set the right column values
@@ -323,11 +340,12 @@ class EndpointMetadata(Base):
             exception: whether the crawl exceptioned.
         """
         # If an endpoint for this URL doesn't exist, create it.
+        normalised_pretty_url = EndpointMetadata.normalise_pretty_url(str(pretty_url))
         try:
-            filter = (EndpointMetadata.pretty_url == pretty_url) & (EndpointMetadata.method == "GET")
+            filter = (EndpointMetadata.pretty_url == normalised_pretty_url) & (EndpointMetadata.method == "GET")
             endpoint_metadata = db.query(EndpointMetadata).filter(filter).one()
         except NoResultFound:
-            endpoint_metadata = EndpointMetadata(pretty_url=pretty_url, method="GET")
+            endpoint_metadata = EndpointMetadata(pretty_url=normalised_pretty_url, method="GET")
             db.add(endpoint_metadata)
             db.commit()
 
