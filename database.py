@@ -7,6 +7,7 @@ from unicornbottle.environment import read_configuration_file
 from unicornbottle.models import Base
 from urllib.parse import quote  
 import configparser
+import os
 import sqlalchemy
 
 CONFIG_FILE = '/home/cli/.cli.conf'
@@ -66,10 +67,15 @@ def database_connect(schema : Optional[str]=None, create:bool=False, disable_poo
 
     url = get_url()
 
-    if disable_pooling:
-        engine = create_engine(url, poolclass=NullPool)
+    if os.getenv('DEBUG'):
+        echo = True
     else:
-        engine = create_engine(url)
+        echo = False
+
+    if disable_pooling:
+        engine = create_engine(url, poolclass=NullPool, echo=echo)
+    else:
+        engine = create_engine(url, echo=echo)
 
     # Instruct the engine to use the schema for all queries.
     engine = engine.execution_options(schema_translate_map={None: schema})

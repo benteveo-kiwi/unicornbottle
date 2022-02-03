@@ -230,7 +230,7 @@ class EndpointMetadata(Base):
         if order_by:
             rows = rows.order_by(order_by)
         else:
-            rows = rows.order_by(EndpointMetadata.crawl_count.asc())
+            rows = rows.order_by(EndpointMetadata.crawl_count.asc(), func.random())
 
         if limit != -1:
             rows = rows.limit(limit)
