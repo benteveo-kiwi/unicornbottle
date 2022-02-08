@@ -9,6 +9,7 @@ from sqlalchemy import func
 from sqlalchemy import or_, not_, and_, any_, all_
 from sqlalchemy import UniqueConstraint, CheckConstraint
 from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm import aliased
 from sqlalchemy.orm import relationship, RelationshipProperty, Query
 from sqlalchemy.orm.session import Session
 from typing import Dict, Optional, Any, Union, TypeVar, Type, List, Tuple
@@ -18,6 +19,7 @@ import json
 import mitmproxy
 import re
 
+EM = TypeVar('EM', bound='EndpointMetadata')
 RR = TypeVar('RR', bound='RequestResponse')
 SE = TypeVar('SE', bound='Severity')
 Base : Any = declarative_base()
@@ -52,6 +54,20 @@ class Target(Base):
 
     assets : RelationshipProperty = relationship("Asset") 
 
+    @staticmethod 
+    def get_active_targets(db:Session) -> List[Tuple[str, str]]:
+        """
+        Retrieves a list of active bug bounties from the DB.
+        """
+        active_targets_tuple = db.query(Target).filter(Target.active == True).all()
+        if len(active_targets_tuple) == 0:
+            raise Exception("No active targets.")
+        else:
+            active_targets = []
+            for at in active_targets_tuple:
+                active_targets.append((at.guid, at.name))
+
+        return active_targets
     @staticmethod
     def get_id_by_guid(db:Session, target_guid:str) -> int:
         """
@@ -130,6 +146,8 @@ class ScopeURL(Base):
         rows:Query = db.query(ScopeURL, EndpointMetadata).join(EndpointMetadata, join_filter,
                         isouter=True).filter(ScopeURL.scope_id == scope.id, EndpointMetadata.id == None)
 
+        rows = rows.filter(ScopeURL.negative == False)
+
         return rows
 
 class EndpointMetadata(Base):
@@ -174,8 +192,8 @@ class EndpointMetadata(Base):
 
     @staticmethod
     def get_endpoints_by_scope(db:Session, scope_name:str, limit:int,
-            max_crawl_count:int, method:Optional[str]=None,
-            order_by:Optional[Column]=None, exclude_static:bool=True) -> Query:
+            max_crawl_count:int=-1, method:Optional[str]=None,
+            order_by:Optional[Column]=None, exclude_static:bool=True, max_fuzz_count:int=-1) -> Query:
         """
         Returns the query object required in order to get all endpoints filtered by scope.
 
@@ -189,46 +207,42 @@ class EndpointMetadata(Base):
             exclude_static: whether to exclude static looking urls, using a
                 LIKE that matches urls that blatantly very much look like JS, SVG
                 etc.
+            max_crawl_count: exclude rows with a `fuzz_count` higher than this value.
         """
         try:
             scope = db.query(Scope).filter(Scope.name == scope_name).one()
         except NoResultFound:
             raise InvalidScopeName("A scope named %s does not exist in the schema" % scope_name)
 
-        # Join.
-        join_filter = (EndpointMetadata.pretty_url.like(ScopeURL.pretty_url_like) & # type: ignore
-                (ScopeURL.scope_id == scope.id) & (ScopeURL.login_script != None)) 
+        positive_scope = aliased(ScopeURL)
+        positive_filter = (EndpointMetadata.pretty_url.like(positive_scope.pretty_url_like) & # type: ignore
+                (positive_scope.scope_id == scope.id) & (positive_scope.negative == False)) 
+        negative_scope = aliased(ScopeURL)
+        negative_filter = (EndpointMetadata.pretty_url.like(negative_scope.pretty_url_like) & # type: ignore
+                (negative_scope.scope_id == scope.id) & (negative_scope.negative == True))
 
-        rows:Query = db.query(EndpointMetadata, ScopeURL)\
-                .join(ScopeURL, join_filter, isouter=True)
+        rows:Query = db.query(EndpointMetadata, positive_scope)\
+                .join(positive_scope, positive_filter)\
+                .join(negative_scope, negative_filter, isouter=True)\
+                    .filter(negative_scope.id == None)
 
         # Filter.
-        negative_scopes = []
-        positive_scopes = []
-        for scope_url in scope.urls:
-            if scope_url.negative:
-                negative_scopes.append(scope_url.pretty_url_like)
-            else:
-                positive_scopes.append(scope_url.pretty_url_like)
-
         if exclude_static:
             rows = rows.filter(not_(EndpointMetadata.pretty_url.ilike(all_(STATIC_FILES))))
-
-        # Optional filters based on function parameters.
-        if len(positive_scopes) > 0:
-            rows = rows.filter(EndpointMetadata.pretty_url.ilike(any_(positive_scopes)))
-        if len(negative_scopes) > 0:
-            rows = rows.filter(not_(EndpointMetadata.pretty_url.ilike(all_(negative_scopes))))
-
         if max_crawl_count != -1:
             rows = rows.filter(EndpointMetadata.crawl_count <= max_crawl_count)
-
+        if max_fuzz_count != -1:
+            rows = rows.filter(EndpointMetadata.fuzz_count <= max_fuzz_count)
         if method:
             rows = rows.filter(EndpointMetadata.method == method)
 
         # Order and Limit.
         if order_by:
-            rows = rows.order_by(order_by)
+            if isinstance(order_by, list):
+                for clause in order_by:
+                    rows = rows.order_by(clause)
+            else:
+                rows = rows.order_by(order_by)
         else:
             rows = rows.order_by(EndpointMetadata.crawl_count.asc(), func.random())
 
@@ -237,6 +251,64 @@ class EndpointMetadata(Base):
 
         return rows
 
+    @staticmethod
+    def get_fuzz_endpoints(db:Session, scope_name:str, limit:int, max_fuzz_count:int) -> List[Tuple[EM, Optional[str]]]:
+        """
+        Gets endpoints that will be sent to the RabbitMQ queue as fuzz tasks.
+        It gets these based on URLs already existing in EndpointMetadata.
+
+        Args:
+            db: the db as returned by `unicornbottle.database.database_connect`
+            scope_name: the scope as stored in the `Scope.name` model.
+            limit: maximum number of results to return from endpoint_metadata.
+                Note that if less than those results are retrievable, we may return
+                more data from any uncrawled_scopes.
+            max_fuzz_count: exclude rows with a `crawl_count` higher than this value.
+        """
+        rows = EndpointMetadata.get_endpoints_by_scope(db, scope_name, limit,
+                max_fuzz_count=max_fuzz_count, order_by=[EndpointMetadata.fuzz_count.asc(), func.random()])
+
+        ret = []
+        for result in rows.all():
+            em, su = result
+            ret.append((em, su.login_script))
+
+        return ret
+
+    @staticmethod
+    def get_crawl_endpoints(db:Session, scope_name:str, limit:int, max_crawl_count:int) -> List[Tuple[str, Optional[str]]]:
+        """
+        Gets endpoints that will be sent to the RabbitMQ queue as crawl tasks.
+        It gets these based on URLs already existing in EndpointMetadata, as
+        well as on URLs present in the `scope_urls` table.
+
+        Args:
+            db: the db as returned by `unicornbottle.database.database_connect`
+            scope_name: the scope as stored in the `Scope.name` model.
+            limit: maximum number of results to return from endpoint_metadata.
+                Note that if less than those results are retrievable, we may return
+                more data from any uncrawled_scopes.
+            max_crawl_count: exclude rows with a `crawl_count` higher than this value.
+        """
+        rows = EndpointMetadata.get_endpoints_by_scope(db, scope_name, limit, max_crawl_count)
+
+        # Transform data to make it consumable by the RabbitMQ producer.
+        urls = []
+        for row in rows.all():
+            endpoint_metadata = row[0]
+            scope_url = row[1]
+
+            login_script = None if scope_url is None else scope_url.login_script # scope_url is none 
+                # when we login_script is none due to the query logic.
+
+            # Because we normalise the URLs in EndpointMetadata to not have a query string,
+            # therefore we need to get the querystring from there yonder,
+            # within RequestResponse.
+            nb_req_resp = len(endpoint_metadata.request_responses)
+            if nb_req_resp > 0:
+                crawl_url = endpoint_metadata.request_responses[randint(0, nb_req_resp - 1)].pretty_url # randomness makes everything better.
+            else:
+                crawl_url = endpoint_metadata.pretty_url
     @staticmethod
     def get_crawl_endpoints(db:Session, scope_name:str, limit:int, max_crawl_count:int) -> List[Tuple[str, Optional[str]]]:
         """
@@ -436,20 +508,23 @@ class RequestResponse(Base):
         plaintext of the request concatenated to the plaintext of the response.
         """
 
-        if not self.request or not self.response:
+        if not self.request:
             return "[-] Could not generate plaintext representation of request_response."
 
         request = Request.fromJSON(str(self.request)).toMITM()
-
-        response = Response.fromJSON(str(self.response)).toMITM()
-
         request.decode(strict=False)
-        response.decode(strict=False)
-
         req_string = assemble.assemble_request(request).decode('utf-8', errors='ignore')
-        resp_string = assemble.assemble_response(response).decode('utf-8', errors='ignore')
 
-        return str(req_string + "\n\n" + resp_string)
+        if self.response:
+            response = Response.fromJSON(str(self.response)).toMITM()
+            response.decode(strict=False)
+            resp_string = assemble.assemble_response(response).decode('utf-8', errors='ignore')
+
+        ret_str = req_string
+        if self.response:
+            ret_str += + "\n\n" + resp_string 
+
+        return str(ret_str)
 
     def get_mitmproxy_request(self) -> mitmproxy.net.http.Request:
         """
