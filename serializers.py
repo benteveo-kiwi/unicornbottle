@@ -395,6 +395,18 @@ class FuzzLocation():
             "fuzz_params": fuzz_params,
         }
 
+        # Headers to avoid fuzzing.
+        header_blacklist = [
+            'x-hackerone',
+            'x-ub-guid',
+            'sec-fetch-site',
+            'sec-fetch-mode',
+            'sec-fetch-dest',
+            'sec-ch-ua-platform',
+            'sec-ch-ua',
+            'sec-fetch-user',
+        ]
+
         fuzz_locations = []
         for param_type in FuzzParamType:
 
@@ -421,7 +433,8 @@ class FuzzLocation():
 
             elif param_type == FuzzParamType.HEADER:
                 for param in request.headers:
-                    fuzz_locations.append(FuzzLocation(param_type=FuzzParamType.HEADER, param_name=param, **base_kwargs))
+                    if param.lower() not in header_blacklist:
+                        fuzz_locations.append(FuzzLocation(param_type=FuzzParamType.HEADER, param_name=param, **base_kwargs))
 
             else:
                 raise Exception("Unhandled FuzzParamType.")

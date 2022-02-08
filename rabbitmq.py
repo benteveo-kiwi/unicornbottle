@@ -1,6 +1,7 @@
 from pika.adapters.blocking_connection import BlockingChannel, BlockingConnection
-from unicornbottle.environment import read_configuration_file
+from pika.frame import Method
 from typing import Tuple
+from unicornbottle.environment import read_configuration_file
 import pika
 
 CRAWL_QUEUE = "crawl_tasks"
@@ -31,6 +32,26 @@ def rabbitmq_connect() -> pika.BlockingConnection:
 
     return connection
 
+def get_channel_queue(queue_name:str) -> Tuple[BlockingConnection, BlockingChannel, Method]:
+    """
+    Get the RabbitMQ channel for writing. 
+
+    You (yes, I AM talking to you) should close the connection once you're done
+    using it with conneciton.close()
+
+    Args:
+        queue_name: the name of the queue to connect to.
+        
+    Returns:
+        (conn, channel, queue) tuple: you MUST close the connection using connection.close()
+    """
+    connection = rabbitmq_connect()
+
+    channel = connection.channel()
+    queue = channel.queue_declare(queue=queue_name, durable=True)
+
+    return (connection, channel, queue)
+
 def get_channel(queue_name:str) -> Tuple[BlockingConnection, BlockingChannel]:
     """
     Get the RabbitMQ channel for writing. 
@@ -44,9 +65,22 @@ def get_channel(queue_name:str) -> Tuple[BlockingConnection, BlockingChannel]:
     Returns:
         (conn, channel) tuple: you MUST close the connection using connection.close()
     """
-    connection = rabbitmq_connect()
-
-    channel = connection.channel()
-    channel.queue_declare(queue=queue_name, durable=True)
-
+    connection, channel, _ = get_channel_queue(queue_name)
     return (connection, channel)
+
+def get_queue_message_nb(queue_name:str) -> int:
+    """
+    Return currently queued up tasks in queue.
+
+    Args:
+        queue_name: the queue to check the count for.
+
+    Returns:
+        the number of tasks queued up.
+    """
+    connection, channel, queue = get_channel_queue(queue_name)
+    nb = queue.method.message_count
+    connection.close()
+
+    return int(nb)
+

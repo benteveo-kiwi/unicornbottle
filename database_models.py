@@ -193,7 +193,8 @@ class EndpointMetadata(Base):
     @staticmethod
     def get_endpoints_by_scope(db:Session, scope_name:str, limit:int,
             max_crawl_count:int=-1, method:Optional[str]=None,
-            order_by:Optional[Column]=None, exclude_static:bool=True, max_fuzz_count:int=-1) -> Query:
+            order_by:Union[List,Optional[Column]]=None,
+            exclude_static:bool=True, max_fuzz_count:int=-1) -> Query:
         """
         Returns the query object required in order to get all endpoints filtered by scope.
 
@@ -275,40 +276,6 @@ class EndpointMetadata(Base):
 
         return ret
 
-    @staticmethod
-    def get_crawl_endpoints(db:Session, scope_name:str, limit:int, max_crawl_count:int) -> List[Tuple[str, Optional[str]]]:
-        """
-        Gets endpoints that will be sent to the RabbitMQ queue as crawl tasks.
-        It gets these based on URLs already existing in EndpointMetadata, as
-        well as on URLs present in the `scope_urls` table.
-
-        Args:
-            db: the db as returned by `unicornbottle.database.database_connect`
-            scope_name: the scope as stored in the `Scope.name` model.
-            limit: maximum number of results to return from endpoint_metadata.
-                Note that if less than those results are retrievable, we may return
-                more data from any uncrawled_scopes.
-            max_crawl_count: exclude rows with a `crawl_count` higher than this value.
-        """
-        rows = EndpointMetadata.get_endpoints_by_scope(db, scope_name, limit, max_crawl_count)
-
-        # Transform data to make it consumable by the RabbitMQ producer.
-        urls = []
-        for row in rows.all():
-            endpoint_metadata = row[0]
-            scope_url = row[1]
-
-            login_script = None if scope_url is None else scope_url.login_script # scope_url is none 
-                # when we login_script is none due to the query logic.
-
-            # Because we normalise the URLs in EndpointMetadata to not have a query string,
-            # therefore we need to get the querystring from there yonder,
-            # within RequestResponse.
-            nb_req_resp = len(endpoint_metadata.request_responses)
-            if nb_req_resp > 0:
-                crawl_url = endpoint_metadata.request_responses[randint(0, nb_req_resp - 1)].pretty_url # randomness makes everything better.
-            else:
-                crawl_url = endpoint_metadata.pretty_url
     @staticmethod
     def get_crawl_endpoints(db:Session, scope_name:str, limit:int, max_crawl_count:int) -> List[Tuple[str, Optional[str]]]:
         """
@@ -520,9 +487,9 @@ class RequestResponse(Base):
             response.decode(strict=False)
             resp_string = assemble.assemble_response(response).decode('utf-8', errors='ignore')
 
-        ret_str = req_string
+        ret_str = str(req_string)
         if self.response:
-            ret_str += + "\n\n" + resp_string 
+            ret_str += "\n\n" + str(resp_string)
 
         return str(ret_str)
 
