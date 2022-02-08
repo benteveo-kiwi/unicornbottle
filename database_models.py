@@ -25,7 +25,7 @@ SE = TypeVar('SE', bound='Severity')
 Base : Any = declarative_base()
 
 STATIC_FILES = [
-    '%.png', '%.gif', '%.jpg', '%.jpeg', '%.svg', '%.webp', '%.tif', '%.tiff', '%.css', '%.js', '%.mp4', '%.woff', '%.woff2', '%.json', '%.ico', '%.ttf', '%.pdf', '%.otf', '%.webm'
+    '%.png', '%.gif', '%.jpg', '%.jpeg', '%.svg', '%.webp', '%.tif', '%.tiff', '%.css', '%.js', '%.mp4', '%.woff', '%.woff2', '%.json', '%.ico', '%.ttf', '%.pdf', '%.otf', '%.webm', '%.iso', '%.tar.gz', '%.mp3', '%.tar'
 ]
 
 class InvalidScopeName(Exception):
