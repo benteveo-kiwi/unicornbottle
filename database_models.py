@@ -369,6 +369,10 @@ class EndpointMetadata(Base):
         Update or create an EndpointMetadata and set the right column values
         corresponding to a successful or failed crawl attempt.
 
+        Please note that for historic reasons this method is called "finished"
+        but is also called when the request is sent to the queue, i.e. when the
+        crawl is started.
+
         Args:
             db: the db as returned by `unicornbottle.database.database_connect`
             pretty_url: as stored in the model.
@@ -396,6 +400,38 @@ class EndpointMetadata(Base):
 
         if exception:
             endpoint_metadata.crawl_exception_count = EndpointMetadata.crawl_exception_count + 1
+
+        db.commit()
+
+    @staticmethod
+    def fuzz_finished(db:Session, em_id:int, update_fuzz_count:bool, fail:bool, exception:bool) -> None:
+        """
+        Updates the relevant column in the database corresponding to a system
+        event related to fuzzing.
+
+        Note that for historic reasons this function is called finished but is
+        also called at startup. This method is also called once per parameter
+        in the case of failures ONLY. This may result in the failure numbers
+        being significantly higher than the fuzz numbers.
+
+        Args:
+            db: The session object for querying the database.
+            em_id: the EndpointMetadata to update.
+            update_fuzz_count: whether to increase by one the fuzz_count column.
+            fail: whether to increase by one the fuzz_fail_count column.
+            exception: whether to increase by one the fuzz_exception_count column.
+        """
+        filter = (EndpointMetadata.id == em_id)
+        endpoint_metadata = db.query(EndpointMetadata).filter(filter).one()
+
+        if update_fuzz_count:
+            endpoint_metadata.fuzz_count = EndpointMetadata.fuzz_count + 1
+
+        if fail:
+            endpoint_metadata.fuzz_fail_count = EndpointMetadata.fuzz_fail_count + 1
+
+        if exception:
+            endpoint_metadata.fuzz_exception_count = EndpointMetadata.fuzz_exception_count + 1
 
         db.commit()
 
