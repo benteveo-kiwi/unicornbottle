@@ -395,7 +395,7 @@ class HTTPProxyClient(object):
 
         try:
             resp = self.send_request(request, corr_id, timeout=timeout)
-            if resp.status_code == 418: # we claim this status code as nobody could reasonably be using it in prod.
+            if resp.status_code == 502 or resp.status_code == 504: # proxy error codes we generate.
                 raise UnableToProxyException("Could not proxy request. Response: %s" % resp.text)
             else:
                 return resp
