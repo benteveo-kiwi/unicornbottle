@@ -526,7 +526,7 @@ class HTTPProxyClient(object):
                 elif resp:
                     return Response.fromJSON(self.responses[corr_id]).toMITM()
 
-                time.sleep(0.001) 
+                time.sleep(0.05) 
         finally:
             with self.lock:
                 try:
