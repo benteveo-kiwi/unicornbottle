@@ -425,7 +425,7 @@ class FuzzLocation():
             elif param_type == FuzzParamType.PARAM_JSON:
                 try:
                     body_json = json.loads(request.content)
-                except json.JSONDecodeError:
+                except:
                     continue
 
                 for param in body_json:
