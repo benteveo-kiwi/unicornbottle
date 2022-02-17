@@ -405,6 +405,7 @@ class FuzzLocation():
             'sec-ch-ua-platform',
             'sec-ch-ua',
             'sec-fetch-user',
+            'host'
         ]
 
         fuzz_locations = []

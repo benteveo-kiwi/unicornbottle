@@ -598,5 +598,12 @@ class Pwnage(Base):
     name = Column(String, nullable=False) 
     description = Column(String, nullable=False)
     severity = Column(Enum(Severity), nullable=False)
+    # is an integer for backward compatibility reasons.
+    # 0 or NULL untriaged
+    # 1 False positive
+    # 2 Not false positive but no impact.
+    # 3 triaged vulnerable.
+    # 4 triaged vulnerable, reported.
+    triage_status = Column(Integer, nullable=True, index=True) 
 
     fuzz_requests : RelationshipProperty = relationship("RequestResponse", foreign_keys='RequestResponse.pwnage_id') # Requests which demonstrate the bug.
