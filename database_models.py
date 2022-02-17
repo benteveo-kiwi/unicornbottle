@@ -495,11 +495,14 @@ class RequestResponse(Base):
         resp_status_code=None
         if dwi.response is not None:
             if store_response:
-                resp = dwi.response.get_state()
+                # This is necessary because get_state contains bytes which
+                # cannot be encoded into JSON. I put my encoding logic into
+                # toJSON() and this is a workaround to make use of it.
+                resp = json.loads(Response(dwi.response.get_state()).toJSON()) 
 
             resp_status_code=dwi.response.status_code
 
-        req = dwi.request.get_state()
+        req = json.loads(Request(dwi.request.get_state()).toJSON())
 
         return cls(metadata_id=metadata_id, pretty_url=dwi.request.pretty_url,
                 pretty_host=dwi.request.pretty_host, path=dwi.request.path,
