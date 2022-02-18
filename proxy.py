@@ -378,7 +378,10 @@ class HTTPProxyClient(object):
         request.headers['X-Hackerone'] = 'benteveo'
 
         # Brotli? encoding causes misterious issues.
-        del request.headers['Accept-Encoding']
+        try:
+            del request.headers['Accept-Encoding']
+        except KeyError:
+            pass
 
         return request
 
