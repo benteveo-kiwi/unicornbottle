@@ -377,6 +377,9 @@ class HTTPProxyClient(object):
         """
         request.headers['X-Hackerone'] = 'benteveo'
 
+        # Brotli? encoding causes misterious issues.
+        del request.headers['Accept-Encoding']
+
         return request
 
     def send_retry(self, request : mitmproxy.net.http.Request, corr_id:Optional[str]=None, attempts_left:int=3, timeout:Optional[float]=None) -> mitmproxy.net.http.Response:
