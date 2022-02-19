@@ -541,7 +541,11 @@ class RequestResponse(Base):
         Converts this database row to a mitmproxy representation of an HTTP
         request.
         """
-        req = Request.fromJSON(str(self.request))
+        try:
+            req = Request.fromJSON(str(self.request)) # Old style, double JSON encoded rows.
+        except json.decoder.JSONDecodeError:
+            req = Request.fromJSON(json.dumps(self.request))# New style, only once JSON encoded
+                #rows. TODO: don't do this.
 
         return req.toMITM()
 
