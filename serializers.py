@@ -96,7 +96,6 @@ class MessageSerializer():
         Raises:
             json.decoder.JSONDecodeError: if you give it bad JSON.
         """
-        j = json.loads(json_str)
         state = json.loads(json_str, cls=RequestDecoder)
         return cls(state)
 
